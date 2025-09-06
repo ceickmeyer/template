@@ -1,0 +1,296 @@
+# Twitter Archive System - Project Guide
+
+## Overview
+Build a Twitter-like archive system using SvelteKit, Supabase, and custom markdown syntax to recreate and store tweet-like content with media support.
+
+## Tech Stack
+- **Frontend**: SvelteKit + TypeScript + Tailwind CSS
+- **Backend**: Supabase (Database + Storage)
+- **Hosting**: Vercel
+- **Custom Markdown Parser** for tweet formatting
+
+## Custom Markdown Syntax
+
+### Basic Tweet
+```
+[name]Steve Jobs[/name] [handle]@stevejobs[/handle] [body]Just released the iPhone. Revolutionary device that will change everything.[/body] [time]9:19 AM · Jan 9, 2007[/time] [likes]1240,892,5830[/likes]
+```
+
+### Quote Tweet
+```
+[name]Steve Jobs[/name] [handle]@stevejobs[/handle] [body]Thoughts on this?[/body]
+[quote] 
+  [name]Bill Gates[/name] [handle]@billgates[/handle] [body]The future of computing is mobile.[/body] 
+[/quote]
+[time]9:19 AM · Jan 9, 2007[/time] [likes]240,92,830[/likes]
+```
+
+### Reply Chain
+```
+[name]Steve Jobs[/name] [handle]@stevejobs[/handle] [body]What do you think about the new iPhone?[/body] [time]9:19 AM · Jan 9, 2007[/time] [likes]1240,892,5830[/likes]
+[reply] 
+  [name]Tim Cook[/name] [handle]@timcook[/handle] [time]9:25 AM · Jan 9, 2007[/time] [body]Incredible innovation! This will change everything.[/body] [likes]340,92,430[/likes] 
+[/reply]
+[reply] 
+  [name]Jony Ive[/name] [handle]@jive[/handle] [time]9:30 AM · Jan 9, 2007[/time] [body]Beautiful design meets powerful technology.[/body] [likes]180,45,290[/likes] 
+[/reply]
+```
+
+### With Media
+```
+[name]Steve Jobs[/name] [handle]@stevejobs[/handle] [body]Here's the new iPhone![/body] [media]iphone-reveal.jpg,keynote-video.mp4[/media] [time]9:19 AM · Jan 9, 2007[/time] [likes]1240,892,5830[/likes]
+```
+
+## Database Schema
+
+### tweets table
+```sql
+CREATE TABLE tweets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(255) NOT NULL, -- for admin reference
+  slug VARCHAR(255) UNIQUE NOT NULL, -- for URL routing
+  markdown_content TEXT NOT NULL,
+  parsed_json JSONB, -- store parsed tweet data for search/indexing
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create index for slug-based routing
+CREATE INDEX idx_tweets_slug ON tweets(slug);
+
+-- Create index for search (future use)
+CREATE INDEX idx_tweets_content ON tweets USING GIN (parsed_json);
+```
+
+### media_files table (optional - for tracking uploaded media)
+```sql
+CREATE TABLE media_files (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tweet_id UUID REFERENCES tweets(id) ON DELETE CASCADE,
+  filename VARCHAR(255) NOT NULL,
+  file_path VARCHAR(500) NOT NULL, -- supabase storage path
+  file_type VARCHAR(50) NOT NULL, -- image/video/etc
+  file_size INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## Project Structure
+
+```
+src/
+├── lib/
+│   ├── components/
+│   │   ├── TweetRenderer.svelte        # Main tweet display component
+│   │   ├── TweetEditor.svelte          # Admin editor for creating tweets
+│   │   ├── MediaUploader.svelte        # Handle paste/upload media
+│   │   ├── MarkdownPreview.svelte      # Live preview of markdown
+│   │   └── ui/
+│   │       ├── TweetCard.svelte        # Individual tweet styling
+│   │       ├── QuoteTweet.svelte       # Quote tweet styling
+│   │       ├── ReplyChain.svelte       # Reply chain styling
+│   │       └── MediaGallery.svelte     # Media display component
+│   ├── utils/
+│   │   ├── markdownParser.ts           # Parse custom markdown to JSON
+│   │   ├── tweetRenderer.ts            # Convert JSON to display data
+│   │   ├── mediaUpload.ts              # Handle Supabase storage uploads
+│   │   └── slugify.ts                  # Generate URL-friendly slugs
+│   ├── types/
+│   │   └── tweet.ts                    # TypeScript interfaces
+│   └── supabase.js                     # Existing Supabase client
+├── routes/
+│   ├── +page.svelte                    # Home page - list all tweets
+│   ├── admin/
+│   │   ├── +page.svelte                # Admin dashboard
+│   │   ├── create/
+│   │   │   └── +page.svelte            # Create new tweet
+│   │   └── edit/
+│   │       └── [slug]/
+│   │           └── +page.svelte        # Edit existing tweet
+│   └── [slug]/
+│       └── +page.svelte                # Individual tweet view
+└── app.css                             # Existing Tailwind imports
+```
+
+## TypeScript Interfaces
+
+```typescript
+// src/lib/types/tweet.ts
+
+export interface MediaFile {
+  filename: string;
+  url: string;
+  type: 'image' | 'video';
+}
+
+export interface TweetMetrics {
+  comments: number;
+  retweets: number;
+  likes: number;
+}
+
+export interface BaseTweet {
+  name: string;
+  handle: string;
+  body: string;
+  time: string;
+  likes: TweetMetrics;
+  media?: MediaFile[];
+}
+
+export interface QuoteTweet extends BaseTweet {
+  quote: BaseTweet;
+}
+
+export interface ReplyTweet extends BaseTweet {
+  // replies are just BaseTweet objects
+}
+
+export interface TweetChain extends BaseTweet {
+  replies: ReplyTweet[];
+}
+
+export interface ParsedTweet {
+  id: string;
+  type: 'basic' | 'quote' | 'chain';
+  mainTweet: BaseTweet | QuoteTweet | TweetChain;
+}
+
+export interface StoredTweet {
+  id: string;
+  title: string;
+  slug: string;
+  markdown_content: string;
+  parsed_json: ParsedTweet;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+## Key Components to Build
+
+### 1. Markdown Parser (`src/lib/utils/markdownParser.ts`)
+- Parse custom markdown syntax into structured JSON
+- Handle nested structures (quotes, replies)
+- Validate required fields
+- Extract and process media references
+
+### 2. Media Upload System (`src/lib/utils/mediaUpload.ts`)
+- Handle paste events in editor
+- Upload to Supabase Storage
+- Generate public URLs
+- Support drag & drop
+- File type validation
+
+### 3. Tweet Renderer (`src/lib/components/TweetRenderer.svelte`)
+- Convert parsed JSON to Twitter-like UI
+- Handle different tweet types (basic, quote, chain)
+- Responsive design
+- Media gallery support
+
+### 4. Admin Editor (`src/lib/components/TweetEditor.svelte`)
+- Live markdown preview
+- Media paste/upload
+- Slug generation
+- Save/update functionality
+
+## Routing Strategy
+
+- `/` - Homepage with tweet list
+- `/admin` - Admin dashboard
+- `/admin/create` - Create new tweet
+- `/admin/edit/[slug]` - Edit existing tweet
+- `/[slug]` - Individual tweet view (public)
+
+## CSS Styling Approach
+
+Use Tailwind for layout and basic styling, plus custom CSS for Twitter-specific elements:
+
+```css
+/* Custom Twitter-like styling */
+.tweet-card {
+  @apply bg-white border border-gray-200 rounded-xl p-4 hover:bg-gray-50 transition-colors;
+}
+
+.tweet-header {
+  @apply flex items-center space-x-3 mb-3;
+}
+
+.tweet-avatar {
+  @apply w-12 h-12 bg-gray-300 rounded-full flex-shrink-0;
+}
+
+.tweet-body {
+  @apply text-gray-900 text-base leading-relaxed mb-3;
+}
+
+.tweet-metrics {
+  @apply flex items-center space-x-6 text-gray-500 text-sm;
+}
+
+.quote-tweet {
+  @apply border border-gray-200 rounded-2xl p-3 mt-3 bg-gray-50;
+}
+
+.reply-chain {
+  @apply border-l-2 border-gray-200 ml-6 pl-4 mt-4;
+}
+```
+
+## Development Phases
+
+### Phase 1: Core Infrastructure
+1. Set up database schema
+2. Build markdown parser
+3. Create basic tweet renderer
+4. Implement CRUD operations
+
+### Phase 2: Admin Interface
+1. Build tweet editor with live preview
+2. Implement media upload system
+3. Add slug generation and validation
+4. Create admin dashboard
+
+### Phase 3: Public Interface
+1. Build public tweet viewing pages
+2. Implement routing system
+3. Add responsive design
+4. Optimize for performance
+
+### Phase 4: Enhancements
+1. Add search functionality
+2. Implement better media handling
+3. Add export/import features
+4. Performance optimizations
+
+## Supabase Storage Setup
+
+Create a storage bucket for media files:
+```sql
+-- Create storage bucket
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('tweet-media', 'tweet-media', true);
+
+-- Set up RLS policies for storage
+CREATE POLICY "Allow public read access" ON storage.objects
+  FOR SELECT USING (bucket_id = 'tweet-media');
+
+CREATE POLICY "Allow authenticated upload" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'tweet-media');
+```
+
+## Questions for Implementation
+
+1. **Avatar Handling**: Should user avatars be stored as media files, or will you use placeholder avatars/initials?
+
+2. **Time Format**: Do you want to store exact timestamps or just display strings? The format "9:19 AM · Sep 3, 2025" suggests display strings.
+
+3. **Verification Badges**: Will you need support for verified checkmarks or other profile indicators?
+
+4. **Link Handling**: Should URLs in tweet bodies be automatically converted to clickable links?
+
+5. **Character Limits**: Do you want to enforce Twitter-like character limits, or allow unlimited text?
+
+6. **Draft System**: Do you need the ability to save drafts before publishing?
+
+This guide provides a comprehensive roadmap for building your Twitter archive system. Each component can be built incrementally, allowing you to test and refine the custom markdown approach as you develop.

@@ -1,0 +1,469 @@
+<script lang="ts">
+  import { supabase } from '$lib/supabase.js';
+  import { parseMarkdown, generateSlug } from '$lib/utils/markdownParser.js';
+  
+  let title = '';
+  let markdownContent = ``;
+  let mediaUrl = '';
+  let avatarUrl = '';
+  let isSubmitting = false;
+  let errorMessage = '';
+  let successMessage = '';
+  let uploadedFiles: string[] = [];
+  let pasteSupported = true;
+
+  // Check if clipboard API is supported
+  $: pasteSupported = typeof navigator !== 'undefined' && 'clipboard' in navigator;
+
+  // Handle file upload
+  async function handleFileUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files) return;
+
+    const files = Array.from(input.files);
+    await uploadFiles(files);
+  }
+
+  // Handle clipboard paste
+  async function handlePaste(event: ClipboardEvent) {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    const files: File[] = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Handle image files from clipboard
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      event.preventDefault();
+      await uploadFiles(files);
+      successMessage = `Pasted ${files.length} image(s) from clipboard!`;
+    }
+  }
+
+  // Upload media from URL
+  async function handleMediaUrl() {
+    if (!mediaUrl.trim()) return;
+
+    try {
+      const response = await fetch(mediaUrl);
+      if (!response.ok) throw new Error('Failed to fetch media');
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
+        throw new Error('URL must be an image or video');
+      }
+
+      const blob = await response.blob();
+      const fileName = `url-${Date.now()}.${contentType.split('/')[1]}`;
+      const file = new File([blob], fileName, { type: contentType });
+
+      await uploadFiles([file]);
+      mediaUrl = '';
+      successMessage = 'Media uploaded from URL successfully!';
+    } catch (error) {
+      console.error('URL upload error:', error);
+      errorMessage = 'Failed to upload from URL: ' + error.message;
+    }
+  }
+
+  // Upload avatar from URL
+  async function handleAvatarUrl() {
+    if (!avatarUrl.trim()) return;
+
+    try {
+      const response = await fetch(avatarUrl);
+      if (!response.ok) throw new Error('Failed to fetch avatar');
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/')) {
+        throw new Error('Avatar URL must be an image');
+      }
+
+      const blob = await response.blob();
+      const fileName = `avatar-${Date.now()}.${contentType.split('/')[1]}`;
+      const file = new File([blob], fileName, { type: contentType });
+
+      await uploadFiles([file], true);
+      avatarUrl = '';
+      successMessage = 'Avatar uploaded from URL successfully!';
+    } catch (error) {
+      console.error('Avatar URL upload error:', error);
+      errorMessage = 'Failed to upload avatar from URL: ' + error.message;
+    }
+  }
+
+  async function uploadFiles(files: File[], isAvatar: boolean = false) {
+    for (const file of files) {
+      try {
+        const prefix = isAvatar ? 'avatar' : 'media';
+        const fileName = `${prefix}-${Date.now()}-${file.name}`;
+        
+        const { data, error } = await supabase.storage
+          .from('tweet-media')
+          .upload(fileName, file);
+
+        if (error) throw error;
+
+        uploadedFiles = [...uploadedFiles, fileName];
+        
+        if (isAvatar) {
+          // Add avatar to markdown content
+          const currentAvatar = markdownContent.match(/\[avatar\](.*?)\[\/avatar\]/);
+          if (currentAvatar) {
+            markdownContent = markdownContent.replace(
+              /\[avatar\].*?\[\/avatar\]/,
+              `[avatar]${fileName}[/avatar]`
+            );
+          } else {
+            markdownContent += ` [avatar]${fileName}[/avatar]`;
+          }
+        } else {
+          // Add to media in markdown content
+          const currentMedia = markdownContent.match(/\[media\](.*?)\[\/media\]/);
+          if (currentMedia) {
+            const existingFiles = currentMedia[1];
+            markdownContent = markdownContent.replace(
+              /\[media\].*?\[\/media\]/,
+              `[media]${existingFiles},${fileName}[/media]`
+            );
+          } else {
+            markdownContent += ` [media]${fileName}[/media]`;
+          }
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        errorMessage = 'Failed to upload file: ' + file.name;
+      }
+    }
+  }
+
+  async function handleSubmit() {
+    if (!title.trim() || !markdownContent.trim()) {
+      errorMessage = 'Please fill in title and content';
+      return;
+    }
+
+    isSubmitting = true;
+    errorMessage = '';
+    successMessage = '';
+
+    try {
+      // Parse the markdown to validate it
+      const parsedData = parseMarkdown(markdownContent);
+      if (!parsedData) {
+        throw new Error('Invalid markdown format');
+      }
+
+      // Generate slug
+      const slug = generateSlug(parsedData);
+
+      const { data, error } = await supabase
+        .from('tweets')
+        .insert([
+          {
+            title: title.trim(),
+            slug: slug,
+            markdown_content: markdownContent.trim()
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+
+      successMessage = 'Tweet created successfully!';
+      title = '';
+      markdownContent = '';
+      uploadedFiles = [];
+
+    } catch (error) {
+      console.error('Error:', error);
+      errorMessage = error.message || 'Failed to create tweet';
+    } finally {
+      isSubmitting = false;
+    }
+  }
+
+  // Clear the textarea to start fresh
+  function clearContent() {
+    markdownContent = '';
+    title = '';
+  }
+
+  // Load different sample types
+  function loadSimpleSample() {
+    markdownContent = `[name]Steve Jobs[/name]
+[handle]@stevejobs[/handle]
+[body]Just released the iPhone. Revolutionary device that will change everything.[/body]
+[time]9:19 AM · Jan 9, 2007[/time]
+[likes]1240,892,5830[/likes]`;
+    title = 'iPhone Launch - Steve Jobs';
+  }
+
+  function loadQuoteSample() {
+    markdownContent = `[name]Elon Musk[/name]
+[handle]@elonmusk[/handle]
+[body]Thoughts on this Mars mission timeline?[/body]
+[time]2:15 PM · Mar 15, 2024[/time]
+[likes]2840,1456,8920[/likes]
+
+[quote]
+[name]NASA[/name]
+[handle]@nasa[/handle]
+[body]We're targeting 2030 for the first crewed mission to Mars. This represents humanity's next giant leap.[/body]
+[time]1:30 PM · Mar 15, 2024[/time]
+[likes]890,445,3210[/likes]
+[/quote]`;
+    title = 'Mars Mission Discussion - Elon Musk';
+  }
+
+  function loadThreadSample() {
+    markdownContent = `[name]Mark Zuckerberg[/name] 
+[handle]@zuck[/handle]
+[body]Excited to share some thoughts on the future of social media and virtual reality. Thread below 👇[/body]
+[time]4:20 PM · Jun 12, 2024[/time]
+[likes]1580,892,4320[/likes]
+
+[reply]
+[name]Mark Zuckerberg[/name] 
+[handle]@zuck[/handle]
+[body]1/ The metaverse isn't just about VR headsets. It's about creating shared digital experiences that feel as real as physical ones.[/body]
+[time]4:22 PM · Jun 12, 2024[/time]
+[likes]456,234,1890[/likes]
+[/reply]
+
+[reply]
+[name]Mark Zuckerberg[/name]
+[handle]@zuck[/handle]
+[body]2/ We're seeing incredible progress in haptic feedback, spatial audio, and photorealistic avatars. The future is closer than you think.[/body]
+[time]4:24 PM · Jun 12, 2024[/time]
+[likes]623,198,2456[/likes]
+[/reply]`;
+    title = 'Metaverse Vision Thread - Mark Zuckerberg';
+  }
+
+  // Clear messages after a few seconds
+  $: if (successMessage) {
+    setTimeout(() => successMessage = '', 5000);
+  }
+</script>
+
+<div class="max-w-4xl mx-auto p-6">
+  <h1 class="text-2xl font-bold mb-6">Create Tweet Archive</h1>
+  
+  <form on:submit|preventDefault={handleSubmit} class="space-y-6">
+    <div>
+      <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+        Title (for admin reference)
+      </label>
+      <input
+        id="title"
+        type="text"
+        bind:value={title}
+        placeholder="e.g., Steve Jobs iPhone Launch"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={isSubmitting}
+      />
+    </div>
+
+    <div>
+      <div class="flex justify-between items-center mb-2">
+        <label for="content" class="block text-sm font-medium text-gray-700">
+          Tweet Content (Markdown)
+        </label>
+        <div class="flex space-x-2">
+          <button
+            type="button"
+            on:click={loadSimpleSample}
+            class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+          >
+            Simple Tweet
+          </button>
+          <button
+            type="button"
+            on:click={loadQuoteSample}
+            class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+          >
+            Quote Tweet
+          </button>
+          <button
+            type="button"
+            on:click={loadThreadSample}
+            class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+          >
+            Thread
+          </button>
+          <button
+            type="button"
+            on:click={clearContent}
+            class="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+      <textarea
+        id="content"
+        bind:value={markdownContent}
+        on:paste={handlePaste}
+        placeholder="Start typing or use the sample buttons above..."
+        rows="20"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+        disabled={isSubmitting}
+      ></textarea>
+      {#if pasteSupported}
+        <p class="mt-1 text-xs text-gray-500">
+          💡 Tip: You can paste images directly into the text area above!
+        </p>
+      {/if}
+    </div>
+
+    <!-- Media Upload Section -->
+    <div class="bg-gray-50 p-4 rounded-lg space-y-4">
+      <h3 class="text-sm font-medium text-gray-900">Media Upload</h3>
+      
+      <!-- File Upload -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          Upload Files
+        </label>
+        <input
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          on:change={handleFileUpload}
+          class="w-full px-3 py-2 border border-gray-300 rounded-md"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <!-- Media URL Upload -->
+      <div>
+        <label for="media-url" class="block text-sm font-medium text-gray-700 mb-2">
+          Media URL
+        </label>
+        <div class="flex space-x-2">
+          <input
+            id="media-url"
+            type="url"
+            bind:value={mediaUrl}
+            placeholder="https://example.com/image.jpg"
+            class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isSubmitting}
+          />
+          <button
+            type="button"
+            on:click={handleMediaUrl}
+            disabled={!mediaUrl.trim() || isSubmitting}
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            Upload
+          </button>
+        </div>
+      </div>
+
+      <!-- Avatar URL Upload -->
+      <div>
+        <label for="avatar-url" class="block text-sm font-medium text-gray-700 mb-2">
+          Avatar URL
+        </label>
+        <div class="flex space-x-2">
+          <input
+            id="avatar-url"
+            type="url"
+            bind:value={avatarUrl}
+            placeholder="https://example.com/avatar.jpg"
+            class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isSubmitting}
+          />
+          <button
+            type="button"
+            on:click={handleAvatarUrl}
+            disabled={!avatarUrl.trim() || isSubmitting}
+            class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+          >
+            Upload
+          </button>
+        </div>
+      </div>
+
+      {#if uploadedFiles.length > 0}
+        <div class="mt-2 text-sm text-green-600">
+          <strong>Uploaded files:</strong>
+          <ul class="list-disc list-inside mt-1">
+            {#each uploadedFiles as file}
+              <li>{file}</li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+    </div>
+
+    {#if errorMessage}
+      <div class="rounded-md bg-red-50 p-4">
+        <p class="text-sm text-red-800">{errorMessage}</p>
+        <button 
+          type="button" 
+          on:click={() => errorMessage = ''}
+          class="text-xs text-red-600 hover:text-red-800 mt-1"
+        >
+          Dismiss
+        </button>
+      </div>
+    {/if}
+
+    {#if successMessage}
+      <div class="rounded-md bg-green-50 p-4">
+        <p class="text-sm text-green-800">{successMessage}</p>
+        <button 
+          type="button" 
+          on:click={() => successMessage = ''}
+          class="text-xs text-green-600 hover:text-green-800 mt-1"
+        >
+          Dismiss
+        </button>
+      </div>
+    {/if}
+
+    <div class="flex space-x-4">
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+      >
+        {isSubmitting ? 'Creating...' : 'Create Tweet'}
+      </button>
+      
+      <a
+        href="/tweets"
+        class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+      >
+        View All Tweets
+      </a>
+    </div>
+  </form>
+
+  <!-- Usage Instructions -->
+  <div class="mt-8 bg-blue-50 p-4 rounded-lg">
+    <h3 class="text-sm font-medium text-blue-900 mb-2">Usage Instructions</h3>
+    <ul class="text-xs text-blue-800 space-y-1">
+      <li><strong>Pre-loaded Sample:</strong> The textarea starts with a complete example showing quote tweets and replies</li>
+      <li><strong>Sample Buttons:</strong> Use "Simple Tweet", "Quote Tweet", or "Thread" buttons for different examples</li>
+      <li><strong>Paste Images:</strong> Copy an image and paste directly into the markdown textarea</li>
+      <li><strong>Media URL:</strong> Paste any public image/video URL to download and upload it</li>
+      <li><strong>Avatar URL:</strong> Upload profile pictures from URLs (adds [avatar] tag)</li>
+      <li><strong>File Upload:</strong> Traditional file picker for local files</li>
+      <li><strong>Media Tags:</strong> Use [media]filename1,filename2[/media] for multiple files</li>
+      <li><strong>Avatar Tags:</strong> Use [avatar]filename[/avatar] for custom profile pictures</li>
+    </ul>
+  </div>
+</div>

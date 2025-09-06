@@ -8,22 +8,28 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Database schema - run this in your Supabase SQL editor:
 /*
-CREATE TABLE predictions (
+-- Drop the old predictions table if you want to clean up
+-- DROP TABLE IF EXISTS predictions;
+
+-- Create contacts table
+CREATE TABLE contacts (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
-  prediction_date DATE NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  address TEXT NOT NULL,
+  city VARCHAR(255) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   user_session VARCHAR(255) UNIQUE -- to track if user already submitted
 );
 
 -- Add RLS policies
-ALTER TABLE predictions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
 
--- Allow anyone to read predictions
-CREATE POLICY "Anyone can view predictions" ON predictions
+-- Allow anyone to read contacts
+CREATE POLICY "Anyone can view contacts" ON contacts
   FOR SELECT USING (true);
 
--- Allow anyone to insert predictions
-CREATE POLICY "Anyone can insert predictions" ON predictions
+-- Allow anyone to insert contacts
+CREATE POLICY "Anyone can insert contacts" ON contacts
   FOR INSERT WITH CHECK (true);
 */
