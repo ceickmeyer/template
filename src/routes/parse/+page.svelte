@@ -355,8 +355,8 @@
     <h3 class="text-sm font-medium text-gray-900 mb-2">How to Use</h3>
     <ol class="text-xs text-gray-700 space-y-1 list-decimal list-inside">
       <li>Go to Twitter/X and find the tweet you want to archive</li>
-      <li>Right-click the tweet and select "Copy" or use Ctrl+A then Ctrl+C to select and copy the entire tweet</li>
-      <li>Click in the paste area above and press Ctrl+V</li>
+      <li>Highlight the tweet, beginning at the avatar and ending at views.</li>
+      
       <li>The system will automatically:
         <ul class="list-disc list-inside ml-4 mt-1 space-y-1">
           <li>Extract the user name, handle, and tweet text</li>
