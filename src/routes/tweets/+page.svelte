@@ -62,36 +62,13 @@
 </script>
 
 <svelte:head>
-  <title>All Tweets - Tweet Archive</title>
+  <title>Admin Tweet Feed</title>
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
   <div class="max-w-4xl mx-auto">
     
-    <!-- Header -->
-    <div class="text-center mb-8">
-      <h1 class="text-3xl font-extrabold text-gray-900">Tweet Archive</h1>
-      <p class="mt-2 text-sm text-gray-600">
-        {filteredTweets.length} archived tweets
-      </p>
-      
-      <!-- Action buttons -->
-      <div class="mt-4 flex justify-center space-x-3">
-        <a
-          href="/"
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-        >
-          Create New Tweet
-        </a>
-        
-        <a
-          href="/parse"
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
-        >
-          Parse from Clipboard
-        </a>
-      </div>
-    </div>
+
 
     <!-- Search and Filters -->
     {#if tweets.length > 0}

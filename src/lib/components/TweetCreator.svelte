@@ -34,6 +34,7 @@
     await uploadFiles(files);
   }
 
+  
   // Handle clipboard paste
   async function handlePaste(event: ClipboardEvent) {
     const items = event.clipboardData?.items;
@@ -85,58 +86,109 @@
     }
   }
 
-  // Upload avatar from URL
-  async function handleAvatarUrl() {
-    if (!avatarUrl.trim()) return;
+async function handleAvatarUpload(event) {
+  const input = event.target;
+  if (!input.files) return;
 
-    try {
-      const response = await fetch(avatarUrl);
-      if (!response.ok) throw new Error('Failed to fetch avatar');
+  const files = Array.from(input.files);
+  await uploadFiles(files, true); // true indicates this is an avatar upload
+}
 
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.startsWith('image/')) {
-        throw new Error('Avatar URL must be an image');
-      }
+async function resizeImageToSquare(file) {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      // Set canvas to 40x40
+      canvas.width = 100;
+      canvas.height = 100;
+      
+      // Calculate dimensions to crop to square
+      const size = Math.min(img.width, img.height);
+      const x = (img.width - size) / 2;
+      const y = (img.height - size) / 2;
+      
+      // Draw the cropped and resized image
+      ctx?.drawImage(img, x, y, size, size, 0, 0, 100, 100);
 
-      const blob = await response.blob();
-      const fileName = `avatar-${Date.now()}.${contentType.split('/')[1]}`;
-      const file = new File([blob], fileName, { type: contentType });
-
-      await uploadFiles([file], true);
-      avatarUrl = '';
-      successMessage = 'Avatar uploaded from URL successfully!';
-    } catch (error) {
-      console.error('Avatar URL upload error:', error);
-      errorMessage = 'Failed to upload avatar from URL: ' + error.message;
-    }
-  }
-
-  async function uploadFiles(files: File[], isAvatar: boolean = false) {
-    for (const file of files) {
-      try {
-        const prefix = isAvatar ? 'avatar' : 'media';
-        const fileName = `${prefix}-${Date.now()}-${file.name}`;
-        
-        const { data, error } = await supabase.storage
-          .from('tweet-media')
-          .upload(fileName, file);
-
-        if (error) throw error;
-
-        uploadedFiles = [...uploadedFiles, fileName];
-        
-        // Add to markdown content
-        if (isAvatar) {
-          insertIntoMarkdown(`[avatar]${fileName}[/avatar]`);
-        } else {
-          insertIntoMarkdown(`[media]${fileName}[/media]`);
+      // Convert back to file
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const resizedFile = new File([blob], `avatar-${Date.now()}.jpg`, {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          resolve(resizedFile);
         }
-      } catch (error) {
-        console.error('Upload error:', error);
-        errorMessage = 'Failed to upload file: ' + file.name;
+      }, 'image/jpeg', 0.9);
+    };
+    
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function handleAvatarUrl() {
+  if (!avatarUrl.trim()) return;
+
+  try {
+    const response = await fetch(avatarUrl);
+    if (!response.ok) throw new Error('Failed to fetch avatar');
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.startsWith('image/')) {
+      throw new Error('Avatar URL must be an image');
+    }
+
+    const blob = await response.blob();
+    const fileName = `avatar-${Date.now()}.${contentType.split('/')[1]}`;
+    const file = new File([blob], fileName, { type: contentType });
+
+    await uploadFiles([file], true);
+    avatarUrl = '';
+    successMessage = 'Avatar uploaded from URL successfully!';
+  } catch (error) {
+    console.error('Avatar URL upload error:', error);
+    errorMessage = 'Failed to upload avatar from URL: ' + error.message;
+  }
+}
+
+
+// Modify your existing uploadFiles function to handle avatars:
+async function uploadFiles(files, isAvatar = false) {
+  for (const file of files) {
+    try {
+      let processedFile = file;
+      
+      // Resize avatar files to 40x40
+      if (isAvatar && file.type.startsWith('image/')) {
+        processedFile = await resizeImageToSquare(file);
       }
+      
+      const prefix = isAvatar ? 'avatar' : 'media';
+      const fileName = `${prefix}-${Date.now()}-${processedFile.name}`;
+      
+      const { data, error } = await supabase.storage
+        .from('tweet-media')
+        .upload(fileName, processedFile);
+
+      if (error) throw error;
+
+      uploadedFiles = [...uploadedFiles, fileName];
+      
+      // Add to markdown content
+      if (isAvatar) {
+        insertIntoMarkdown(`[avatar]${fileName}[/avatar]`);
+      } else {
+        insertIntoMarkdown(`[media]${fileName}[/media]`);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      errorMessage = 'Failed to upload file: ' + file.name;
     }
   }
+}
 
   // Helper function to insert tags into markdown
   function insertIntoMarkdown(tag: string) {
@@ -274,7 +326,7 @@
 </script>
 
 <div class="max-w-6xl mx-auto p-6">
-  <h1 class="text-2xl font-bold mb-6">Create Tweet Archive</h1>
+  <h1 class="text-2xl font-bold mb-6">Recreate Tweet</h1>
   
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     
@@ -395,6 +447,19 @@
             />
           </div>
 
+          <div>
+  <label class="block text-sm font-medium text-gray-700 mb-2">
+    Upload Avatar
+  </label>
+  <input
+    type="file"
+    accept="image/*"
+    on:change={handleAvatarUpload}
+    class="w-full px-3 py-2 border border-gray-300 rounded-md"
+    disabled={isSubmitting}
+  />
+</div>
+
           <!-- Media URL Upload -->
           <div>
             <label for="media-url" class="block text-sm font-medium text-gray-700 mb-2">
@@ -420,30 +485,29 @@
             </div>
           </div>
 
-          <!-- Avatar URL Upload -->
-          <div>
-            <label for="avatar-url" class="block text-sm font-medium text-gray-700 mb-2">
-              Avatar URL
-            </label>
-            <div class="flex space-x-2">
-              <input
-                id="avatar-url"
-                type="url"
-                bind:value={avatarUrl}
-                placeholder="https://example.com/avatar.jpg"
-                class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isSubmitting}
-              />
-              <button
-                type="button"
-                on:click={handleAvatarUrl}
-                disabled={!avatarUrl.trim() || isSubmitting}
-                class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-              >
-                Upload
-              </button>
-            </div>
-          </div>
+<div>
+  <label for="avatar-url" class="block text-sm font-medium text-gray-700 mb-2">
+    Avatar URL
+  </label>
+  <div class="flex space-x-2">
+    <input
+      id="avatar-url"
+      type="url"
+      bind:value={avatarUrl}
+      placeholder="https://example.com/avatar.jpg"
+      class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      disabled={isSubmitting}
+    />
+    <button
+      type="button"
+      on:click={handleAvatarUrl}
+      disabled={!avatarUrl.trim() || isSubmitting}
+      class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+    >
+      Upload
+    </button>
+  </div>
+</div>
 
           {#if uploadedFiles.length > 0}
             <div class="mt-2 text-sm text-green-600">
@@ -479,7 +543,7 @@
     <!-- Preview Section -->
     <div class="space-y-4">
       <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Live Preview</h3>
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Raw Code Preview</h3>
         
         {#if parseResult?.success && parseResult.data}
           <div class="space-y-4">

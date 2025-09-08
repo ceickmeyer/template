@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-  <title>Tweet Archive Creator</title>
+  <title>Museum of Twitter</title>
 </svelte:head>
 
 

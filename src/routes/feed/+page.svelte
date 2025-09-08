@@ -94,7 +94,7 @@
 </script>
 
 <svelte:head>
-  <title>Home / X</title>
+  <title>Museum of Twitter</title>
   <meta name="description" content="Latest tweets and discussions" />
 </svelte:head>
 
@@ -103,7 +103,7 @@
   <!-- Header - Twitter style -->
   <div class="twitter-header">
     <div class="twitter-header-inner">
-      <h1 class="twitter-title">Home</h1>
+      <h1 class="twitter-title">Museum of Twitter</h1>
     </div>
   </div>
 
