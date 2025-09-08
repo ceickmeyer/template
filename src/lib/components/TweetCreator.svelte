@@ -463,7 +463,7 @@ async function uploadFiles(files, isAvatar = false) {
           <!-- Media URL Upload -->
           <div>
             <label for="media-url" class="block text-sm font-medium text-gray-700 mb-2">
-              Media URL
+              Upload Media via URL
             </label>
             <div class="flex space-x-2">
               <input
@@ -487,7 +487,7 @@ async function uploadFiles(files, isAvatar = false) {
 
 <div>
   <label for="avatar-url" class="block text-sm font-medium text-gray-700 mb-2">
-    Avatar URL
+    Upload Avatar via URL
   </label>
   <div class="flex space-x-2">
     <input

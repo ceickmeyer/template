@@ -13,7 +13,7 @@
         <div class="flex items-center space-x-8">
           <!-- Logo/Brand -->
           <div class="flex-shrink-0">
-            <h1 class="text-xl font-bold text-gray-900">Tweet Archive</h1>
+            <h1 class="text-xl font-bold text-gray-900">Museum of Twitter Admin</h1>
           </div>
           
           <!-- Navigation Links -->
