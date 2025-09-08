@@ -96,51 +96,52 @@
 </script>
 
 <svelte:head>
-  <title>{tweet ? `${tweet.title} - Tweet Feed` : 'Tweet'}</title>
+  <title>{tweet ? `${tweet.title} / X` : 'Post / X'}</title>
   {#if tweet}
     <meta name="description" content={tweet.title} />
   {/if}
 </svelte:head>
 
-<div class="tweet-page-container">
+<!-- Twitter-style single tweet page -->
+<div class="twitter-tweet-page">
   <!-- Header with Navigation -->
-  <header class="tweet-page-header">
-    <div class="tweet-page-header-content">
+  <header class="twitter-tweet-header">
+    <div class="twitter-tweet-header-inner">
       <!-- Back Button -->
       <button 
-        class="tweet-nav-button tweet-back-button"
+        class="twitter-nav-button twitter-back-button"
         on:click={goBackToFeed}
-        aria-label="Back to feed"
+        aria-label="Back to timeline"
       >
-        <svg class="tweet-nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        <svg class="twitter-nav-icon" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M7.414 13l5.043 5.04-1.414 1.42L3.586 12l7.457-7.46 1.414 1.42L7.414 11H21v2H7.414z"/>
         </svg>
       </button>
 
       <!-- Title -->
-      <h1 class="tweet-page-title">Tweet</h1>
+      <h1 class="twitter-tweet-title">Post</h1>
 
       <!-- Navigation Buttons -->
-      <div class="tweet-page-nav">
+      <div class="twitter-tweet-nav">
         <button 
-          class="tweet-nav-button tweet-prev-button"
+          class="twitter-nav-button twitter-prev-button"
           on:click={goToPrevious}
           disabled={currentIndex <= 0}
-          aria-label="Previous tweet"
+          aria-label="Previous post"
         >
-          <svg class="tweet-nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          <svg class="twitter-nav-icon" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
           </svg>
         </button>
         
         <button 
-          class="tweet-nav-button tweet-next-button"
+          class="twitter-nav-button twitter-next-button"
           on:click={goToNext}
           disabled={currentIndex >= allTweets.length - 1}
-          aria-label="Next tweet"
+          aria-label="Next post"
         >
-          <svg class="tweet-nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          <svg class="twitter-nav-icon" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
           </svg>
         </button>
       </div>
@@ -148,221 +149,220 @@
   </header>
 
   <!-- Content -->
-  <main class="tweet-page-main">
+  <main class="twitter-tweet-main">
     {#if loading}
-      <div class="tweet-page-loading">
-        <div class="tweet-page-loading-spinner"></div>
-        <p class="tweet-page-loading-text">Loading tweet...</p>
+      <div class="twitter-tweet-loading">
+        <div class="twitter-spinner"></div>
       </div>
     {:else if errorMessage}
-      <div class="tweet-page-error">
-        <div class="tweet-page-error-content">
-          <h2 class="tweet-page-error-title">Tweet not found</h2>
-          <p class="tweet-page-error-text">{errorMessage}</p>
+      <div class="twitter-tweet-error">
+        <div class="twitter-tweet-error-content">
+          <h2 class="twitter-tweet-error-title">Something went wrong</h2>
+          <p class="twitter-tweet-error-text">{errorMessage}</p>
           <button
-            class="tweet-page-error-button"
+            class="twitter-retry-btn"
             on:click={goBackToFeed}
           >
-            Back to feed
+            Back to timeline
           </button>
         </div>
       </div>
     {:else if tweet}
       <!-- Tweet Content -->
-      <div class="tweet-page-content">
-        <UserTweetDisplay {tweet} clickable={false} showFullContext={true} />
-      </div>
-
-
+      <article class="twitter-tweet-content">
+        <UserTweetDisplay {tweet} clickable={false} />
+      </article>
     {/if}
   </main>
 </div>
 
 <style>
+  /* Base Twitter styling - matches feed page */
+  :global(body) {
+    font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: rgb(0, 0, 0);
+    color: rgb(231, 233, 234);
+    font-size: 15px;
+    line-height: 20px;
+    margin: 0;
+    padding: 0;
+  }
+
   /* Page Container */
-  .tweet-page-container {
+  .twitter-tweet-page {
     max-width: 600px;
     margin: 0 auto;
     min-height: 100vh;
-    background-color: #ffffff;
+    background-color: rgb(0, 0, 0);
+    border-left: 1px solid rgb(47, 51, 54);
+    border-right: 1px solid rgb(47, 51, 54);
+    position: relative;
   }
 
-  /* Header Styles */
-  .tweet-page-header {
+  /* Header */
+  .twitter-tweet-header {
     position: sticky;
     top: 0;
-    background-color: rgba(255, 255, 255, 0.9);
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid #e1e8ed;
-    z-index: 10;
+    border-bottom: 1px solid rgb(47, 51, 54);
   }
 
-  .tweet-page-header-content {
+  .twitter-tweet-header-inner {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 0 16px;
+    height: 53px;
     gap: 16px;
   }
 
-  .tweet-page-title {
+  .twitter-tweet-title {
     font-size: 20px;
-    font-weight: bold;
-    color: #0f1419;
+    font-weight: 800;
+    line-height: 24px;
+    color: rgb(231, 233, 234);
     margin: 0;
     flex: 1;
     text-align: center;
   }
 
   /* Navigation Buttons */
-  .tweet-nav-button {
+  .twitter-nav-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     border: none;
     border-radius: 50%;
     background-color: transparent;
-    color: #536471;
+    color: rgb(231, 233, 234);
     cursor: pointer;
     transition: all 0.2s ease;
+    padding: 0;
   }
 
-  .tweet-nav-button:hover:not(:disabled) {
-    background-color: #f7f9fa;
-    color: #0f1419;
+  .twitter-nav-button:hover:not(:disabled) {
+    background-color: rgba(231, 233, 234, 0.1);
   }
 
-  .tweet-nav-button:disabled {
+  .twitter-nav-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  .tweet-nav-icon {
+  .twitter-nav-icon {
     width: 20px;
     height: 20px;
   }
 
-  .tweet-back-button {
-    /* Back button specific styling */
-  }
-
-  .tweet-page-nav {
+  .twitter-tweet-nav {
     display: flex;
     gap: 8px;
   }
 
   /* Main Content */
-  .tweet-page-main {
-    min-height: calc(100vh - 61px);
+  .twitter-tweet-main {
+    min-height: calc(100vh - 53px);
   }
 
-  .tweet-page-content {
-    padding: 16px;
+  .twitter-tweet-content {
+    /* Tweet content container - no padding since UserTweetDisplay handles it */
   }
 
   /* Loading State */
-  .tweet-page-loading {
+  .twitter-tweet-loading {
     display: flex;
-    flex-direction: column;
-    align-items: center;
     justify-content: center;
-    padding: 80px 20px;
+    align-items: center;
+    padding: 40px 20px;
+    min-height: 200px;
   }
 
-  .tweet-page-loading-spinner {
+  .twitter-spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid #e1e8ed;
-    border-top: 3px solid #1d9bf0;
+    border: 2px solid rgb(47, 51, 54);
+    border-top: 2px solid rgb(29, 155, 240);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: twitter-spin 1s linear infinite;
   }
 
-  @keyframes spin {
+  @keyframes twitter-spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
 
-  .tweet-page-loading-text {
-    margin-top: 16px;
-    color: #536471;
-    font-size: 15px;
-  }
-
   /* Error State */
-  .tweet-page-error {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 80px 20px;
-  }
-
-  .tweet-page-error-content {
+  .twitter-tweet-error {
+    padding: 32px 16px;
     text-align: center;
-    max-width: 400px;
   }
 
-  .tweet-page-error-title {
-    font-size: 24px;
-    font-weight: bold;
-    color: #0f1419;
-    margin: 0 0 12px 0;
+  .twitter-tweet-error-content {
+    max-width: 320px;
+    margin: 0 auto;
   }
 
-  .tweet-page-error-text {
-    color: #536471;
+  .twitter-tweet-error-title {
+    font-size: 31px;
+    font-weight: 800;
+    line-height: 36px;
+    color: rgb(231, 233, 234);
+    margin: 0 0 8px 0;
+  }
+
+  .twitter-tweet-error-text {
     font-size: 15px;
-    margin: 0 0 24px 0;
-    line-height: 1.4;
+    line-height: 20px;
+    color: rgb(113, 118, 123);
+    margin: 0 0 28px 0;
   }
 
-  .tweet-page-error-button {
-    background-color: #1d9bf0;
-    color: white;
-    border: none;
-    border-radius: 20px;
-    padding: 12px 24px;
-    font-size: 15px;
-    font-weight: bold;
+  .twitter-retry-btn {
+    background-color: rgb(29, 155, 240);
+    border: 1px solid rgba(0, 0, 0, 0);
+    border-radius: 9999px;
+    color: rgb(255, 255, 255);
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    padding: 8px 24px;
+    transition: all 0.2s ease-in-out;
   }
 
-  .tweet-page-error-button:hover {
-    background-color: #1a8cd8;
+  .twitter-retry-btn:hover {
+    background-color: rgb(26, 140, 216);
   }
 
-  /* Info Section - Removed */
-
-  /* Responsive Design */
-  @media (max-width: 640px) {
-    .tweet-page-container {
-      max-width: 100%;
+  /* Responsive design */
+  @media (max-width: 688px) {
+    .twitter-tweet-page {
+      border-left: none;
+      border-right: none;
     }
     
-    .tweet-page-header-content {
-      padding: 8px 12px;
+    .twitter-tweet-header-inner {
+      padding: 0 12px;
     }
     
-    .tweet-page-content {
-      padding: 12px;
-    }
-    
-    .tweet-page-title {
+    .twitter-tweet-title {
       font-size: 18px;
     }
   }
 
-  /* Focus styles for accessibility */
-  .tweet-nav-button:focus {
-    outline: 2px solid #1d9bf0;
+  /* Focus and accessibility */
+  .twitter-nav-button:focus-visible {
+    outline: 2px solid rgb(29, 155, 240);
     outline-offset: 2px;
   }
 
-  .tweet-page-error-button:focus {
-    outline: 2px solid #1d9bf0;
+  .twitter-retry-btn:focus-visible {
+    outline: 2px solid rgb(29, 155, 240);
     outline-offset: 2px;
   }
 </style>

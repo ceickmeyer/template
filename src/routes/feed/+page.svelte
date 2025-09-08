@@ -94,241 +94,300 @@
 </script>
 
 <svelte:head>
-  <title>Tweet Feed</title>
+  <title>Home / X</title>
   <meta name="description" content="Latest tweets and discussions" />
 </svelte:head>
 
-<div class="feed-container">
-  <!-- Minimal Header -->
-  <header class="feed-header">
-    <div class="feed-header-content">
-      <h1 class="feed-title">Feed</h1>
-      <div class="feed-stats">
-        {tweets.length} tweets
-      </div>
+<!-- Twitter-style layout -->
+<div class="twitter-feed">
+  <!-- Header - Twitter style -->
+  <div class="twitter-header">
+    <div class="twitter-header-inner">
+      <h1 class="twitter-title">Home</h1>
     </div>
-  </header>
+  </div>
 
-  <!-- Feed Content -->
-  <main class="feed-main">
+  <!-- Feed Timeline -->
+  <div class="twitter-timeline">
     {#if loading && tweets.length === 0}
-      <div class="feed-loading">
-        <div class="feed-loading-spinner"></div>
-        <p class="feed-loading-text">Loading tweets...</p>
+      <div class="twitter-loading">
+        <div class="twitter-spinner"></div>
       </div>
     {:else if error && tweets.length === 0}
-      <div class="feed-error">
-        <p class="feed-error-text">{error}</p>
-        <button
-          type="button"
-          on:click={() => loadTweets()}
-          class="feed-retry-button"
-        >
-          Try again
-        </button>
+      <div class="twitter-error">
+        <div class="twitter-error-content">
+          <h2 class="twitter-error-title">Something went wrong</h2>
+          <p class="twitter-error-text">{error}</p>
+          <button
+            type="button"
+            on:click={() => loadTweets()}
+            class="twitter-retry-btn"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     {:else if tweets.length === 0}
-      <div class="feed-empty">
-        <h3 class="feed-empty-title">No tweets yet</h3>
-        <p class="feed-empty-text">Be the first to share something interesting!</p>
+      <div class="twitter-empty">
+        <div class="twitter-empty-content">
+          <h2 class="twitter-empty-title">Welcome to your timeline!</h2>
+          <p class="twitter-empty-text">When people you follow post, you'll see it here.</p>
+        </div>
       </div>
     {:else}
-      <!-- Tweet List -->
-      <div class="feed-tweets">
-        {#each tweets as tweet (tweet.id)}
-          <div class="feed-tweet-item">
-            <UserTweetDisplay {tweet} clickable={true} />
-          </div>
-        {/each}
-      </div>
+      <!-- Tweet Articles -->
+      {#each tweets as tweet (tweet.id)}
+        <article class="twitter-tweet-article">
+          <UserTweetDisplay {tweet} clickable={true} />
+        </article>
+      {/each}
 
-      <!-- Loading More Indicator -->
+      <!-- Load More States -->
       {#if loadingMore}
-        <div class="feed-loading-more">
-          <div class="feed-loading-spinner"></div>
-          <p class="feed-loading-text">Loading more tweets...</p>
+        <div class="twitter-loading-more">
+          <div class="twitter-spinner"></div>
         </div>
       {:else if !hasMore && tweets.length > 0}
-        <div class="feed-end">
-          <p class="feed-end-text">You've reached the end of the feed</p>
+        <div class="twitter-end">
+          <div class="twitter-end-content">
+            <p class="twitter-end-text">You're all caught up</p>
+            <p class="twitter-end-subtext">You've seen all new posts</p>
+          </div>
         </div>
       {/if}
     {/if}
-  </main>
+  </div>
 </div>
 
 <style>
-  /* Feed Container */
-  .feed-container {
-    max-width: 600px;
-    margin: 0 auto;
-    min-height: 100vh;
-    background-color: #ffffff;
+  /* Base Twitter styling */
+  :global(body) {
+    font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: rgb(0, 0, 0);
+    color: rgb(231, 233, 234);
+    font-size: 15px;
+    line-height: 20px;
+    margin: 0;
+    padding: 0;
   }
 
-  /* Header Styles */
-  .feed-header {
+  /* Main feed container */
+  .twitter-feed {
+    max-width: 600px;
+    min-height: 100vh;
+    margin: 0 auto;
+    background-color: rgb(0, 0, 0);
+    border-left: 1px solid rgb(47, 51, 54);
+    border-right: 1px solid rgb(47, 51, 54);
+    position: relative;
+  }
+
+  /* Header */
+  .twitter-header {
     position: sticky;
     top: 0;
-    background-color: rgba(255, 255, 255, 0.9);
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid #e1e8ed;
-    z-index: 10;
+    border-bottom: 1px solid rgb(47, 51, 54);
   }
 
-  .feed-header-content {
+  .twitter-header-inner {
+    padding: 0 16px;
+    height: 53px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px;
   }
 
-  .feed-title {
+  .twitter-title {
     font-size: 20px;
-    font-weight: bold;
-    color: #0f1419;
+    font-weight: 800;
+    line-height: 24px;
+    color: rgb(231, 233, 234);
     margin: 0;
   }
 
-  .feed-stats {
-    font-size: 14px;
-    color: #536471;
+  /* Timeline */
+  .twitter-timeline {
+    min-height: calc(100vh - 53px);
   }
 
-  /* Main Content */
-  .feed-main {
-    min-height: calc(100vh - 73px);
-  }
-
-  /* Tweet List */
-  .feed-tweets {
-    /* Tweet list container */
-  }
-
-  .feed-tweet-item {
-    border-bottom: 1px solid #e1e8ed;
-    padding: 12px 16px;
-    transition: background-color 0.2s ease;
-  }
-
-  .feed-tweet-item:hover {
-    background-color: #f7f9fa;
-  }
-
-  .feed-tweet-item:last-child {
-    border-bottom: none;
-  }
-
-  /* Loading States */
-  .feed-loading,
-  .feed-loading-more {
+  /* Tweet Article */
+  .twitter-tweet-article {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 20px;
+    border-bottom: 1px solid rgb(47, 51, 54);
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+    position: relative;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    background-color: rgba(0, 0, 0, 0);
   }
 
-  .feed-loading-spinner {
+  .twitter-tweet-article:hover {
+    background-color: rgba(231, 233, 234, 0.03);
+  }
+
+  /* Loading states */
+  .twitter-loading,
+  .twitter-loading-more {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    min-height: 100px;
+  }
+
+  .twitter-spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid #e1e8ed;
-    border-top: 3px solid #1d9bf0;
+    border: 2px solid rgb(47, 51, 54);
+    border-top: 2px solid rgb(29, 155, 240);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: twitter-spin 1s linear infinite;
   }
 
-  @keyframes spin {
+  @keyframes twitter-spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
 
-  .feed-loading-text {
-    margin-top: 12px;
-    color: #536471;
-    font-size: 15px;
-  }
-
-  /* Error State */
-  .feed-error {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 20px;
-  }
-
-  .feed-error-text {
-    color: #f4212e;
-    font-size: 15px;
-    margin-bottom: 16px;
-  }
-
-  .feed-retry-button {
-    background-color: #1d9bf0;
-    color: white;
-    border: none;
-    border-radius: 20px;
-    padding: 8px 20px;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-
-  .feed-retry-button:hover {
-    background-color: #1a8cd8;
-  }
-
-  /* Empty State */
-  .feed-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
+  /* Error state */
+  .twitter-error {
+    padding: 32px 16px;
     text-align: center;
   }
 
-  .feed-empty-title {
-    font-size: 18px;
-    font-weight: bold;
-    color: #0f1419;
+  .twitter-error-content {
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  .twitter-error-title {
+    font-size: 31px;
+    font-weight: 800;
+    line-height: 36px;
+    color: rgb(231, 233, 234);
     margin: 0 0 8px 0;
   }
 
-  .feed-empty-text {
-    color: #536471;
+  .twitter-error-text {
     font-size: 15px;
+    line-height: 20px;
+    color: rgb(113, 118, 123);
+    margin: 0 0 28px 0;
+  }
+
+  .twitter-retry-btn {
+    background-color: rgb(29, 155, 240);
+    border: 1px solid rgba(0, 0, 0, 0);
+    border-radius: 9999px;
+    color: rgb(255, 255, 255);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    padding: 8px 24px;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .twitter-retry-btn:hover {
+    background-color: rgb(26, 140, 216);
+  }
+
+  /* Empty state */
+  .twitter-empty {
+    padding: 32px 16px;
+    text-align: center;
+  }
+
+  .twitter-empty-content {
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  .twitter-empty-title {
+    font-size: 31px;
+    font-weight: 800;
+    line-height: 36px;
+    color: rgb(231, 233, 234);
+    margin: 0 0 8px 0;
+  }
+
+  .twitter-empty-text {
+    font-size: 15px;
+    line-height: 20px;
+    color: rgb(113, 118, 123);
     margin: 0;
   }
 
-  /* End of Feed */
-  .feed-end {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 20px;
+  /* End of feed */
+  .twitter-end {
+    padding: 32px 16px;
+    text-align: center;
   }
 
-  .feed-end-text {
-    color: #536471;
-    font-size: 14px;
+  .twitter-end-content {
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  .twitter-end-text {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 24px;
+    color: rgb(231, 233, 234);
+    margin: 0 0 4px 0;
+  }
+
+  .twitter-end-subtext {
+    font-size: 15px;
+    line-height: 20px;
+    color: rgb(113, 118, 123);
     margin: 0;
   }
 
-  /* Responsive Design */
-  @media (max-width: 640px) {
-    .feed-container {
-      max-width: 100%;
+  /* Responsive design */
+  @media (max-width: 688px) {
+    .twitter-feed {
+      border-left: none;
+      border-right: none;
     }
     
-    .feed-header-content {
-      padding: 12px 16px;
+    .twitter-header-inner {
+      padding: 0 12px;
     }
-    
-    .feed-tweet-item {
-      padding: 12px;
-    }
+  }
+
+  /* Focus and accessibility */
+  .twitter-tweet-article:focus-visible {
+    outline: 2px solid rgb(29, 155, 240);
+    outline-offset: -2px;
+  }
+
+  .twitter-retry-btn:focus-visible {
+    outline: 2px solid rgb(29, 155, 240);
+    outline-offset: 2px;
+  }
+
+  /* Scrollbar styling for webkit browsers */
+  :global(::-webkit-scrollbar) {
+    width: 6px;
+  }
+
+  :global(::-webkit-scrollbar-track) {
+    background: rgb(22, 24, 28);
+  }
+
+  :global(::-webkit-scrollbar-thumb) {
+    background: rgb(62, 65, 68);
+    border-radius: 3px;
+  }
+
+  :global(::-webkit-scrollbar-thumb:hover) {
+    background: rgb(82, 85, 88);
   }
 </style>
