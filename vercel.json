@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "museumoftwitter.com"
+        }
+      ],
+      "destination": "/feed",
+      "permanent": false
+    }
+  ]
+}
