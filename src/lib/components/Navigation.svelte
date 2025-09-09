@@ -1,9 +1,8 @@
-<!-- src/lib/components/Navigation.svelte -->
 <script lang="ts">
   import { page } from '$app/stores';
   
-  // Don't show navigation on feed pages
-  $: showNavigation = !$page.url.pathname.startsWith('/feed');
+  // Don't show navigation on the main feed page
+  $: showNavigation = $page.url.pathname !== '/';
 </script>
 
 {#if showNavigation}
@@ -19,28 +18,28 @@
           <!-- Navigation Links -->
           <div class="hidden md:flex space-x-8">
             <a
-              href="/"
-              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname === '/' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
+              href="/admin/create"
+              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname === '/admin/create' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
             >
               Create Tweet (Markdown)
             </a>
             
             <a
-              href="/parse"
-              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname === '/parse' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
+              href="/admin/parse"
+              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname === '/admin/parse' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
             >
               Create Tweet (Clipboard)
             </a>
             
             <a
-              href="/tweets"
-              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname.startsWith('/tweets') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
+              href="/admin/tweets"
+              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname.startsWith('/admin/tweets') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
             >
               Admin: View/Edit Tweets
             </a>
             
             <a
-              href="/feed"
+              href="/"
               class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
             >
               Public Feed
@@ -93,8 +92,8 @@
         </a>
         
         <a
-          href="/feed"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname.startsWith('/feed') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
+          href="/"
+          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname.startsWith('/') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
         >
           Public Feed
         </a>
