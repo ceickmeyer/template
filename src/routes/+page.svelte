@@ -105,7 +105,7 @@
     <div class="twitter-header-inner">
       <h1 class="twitter-title">Museum of Twitter</h1>
       <!-- Add admin link -->
-      <a href="/admin" class="twitter-admin-link">Admin</a>
+      <a href="https://www.tiktok.com/@thejakechristie" class="twitter-admin-link">@thejakechristie</a>
     </div>
   </div>
 
