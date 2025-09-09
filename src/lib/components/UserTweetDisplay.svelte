@@ -52,7 +52,7 @@
       return;
     }
     
-    goto(`/feed/${tweet.slug}`);
+    goto(`/${tweet.slug}`);
   }
 
   // Handle media click for lightbox

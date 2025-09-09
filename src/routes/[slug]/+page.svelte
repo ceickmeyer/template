@@ -74,19 +74,19 @@
   function goToPrevious() {
     if (currentIndex > 0) {
       const prevTweet = allTweets[currentIndex - 1];
-      goto(`/feed/${prevTweet.slug}`);
+      goto(`/${prevTweet.slug}`);
     }
   }
 
   function goToNext() {
     if (currentIndex < allTweets.length - 1) {
       const nextTweet = allTweets[currentIndex + 1];
-      goto(`/feed/${nextTweet.slug}`);
+      goto(`/${nextTweet.slug}`);
     }
   }
 
   function goBackToFeed() {
-    goto('/feed');
+    goto('/');
   }
 
   // Update when slug changes (for navigation)

@@ -1,10 +1,9 @@
 <script lang="ts">
   import { page } from '$app/stores';
   
-  // Don't show navigation on the main feed page
-  $: showNavigation = $page.url.pathname !== '/';
+  // Show navigation only on admin pages
+  $: showNavigation = $page.url.pathname.startsWith('/admin');
 </script>
-
 {#if showNavigation}
   <nav class="bg-white border-b border-gray-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
