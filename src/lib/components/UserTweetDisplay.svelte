@@ -81,6 +81,7 @@
     <p class="tweet-error-text">Parse Error: {parseResult.error}</p>
   </div>
 {:else if parsedTweet}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div 
     class="tweet-container {clickable ? 'tweet-clickable' : ''}"
     on:click={handleTweetClick}
@@ -251,28 +252,39 @@
       {/if}
       
       <!-- Tweet Metrics -->
-      <div class="tweet-metrics">
-        <div class="tweet-metric tweet-metric-comments">
-          <svg class="tweet-metric-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <span class="tweet-metric-count">{formatNumber(metrics.comments)}</span>
-        </div>
-        
-        <div class="tweet-metric tweet-metric-retweets">
-          <svg class="tweet-metric-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-          </svg>
-          <span class="tweet-metric-count">{formatNumber(metrics.retweets)}</span>
-        </div>
-        
-        <div class="tweet-metric tweet-metric-likes">
-          <svg class="tweet-metric-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
-          <span class="tweet-metric-count">{formatNumber(metrics.likes)}</span>
-        </div>
-      </div>
+<div class="tweet-metrics">
+  <div class="tweet-metrics-container">
+    <div class="tweet-metric tweet-metric-comments">
+      <svg class="tweet-metric-icon" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/>
+      </svg>
+      <span class="tweet-metric-count">{formatNumber(metrics.comments)}</span>
+    </div>
+
+    <div class="tweet-metric tweet-metric-retweets">
+      <svg class="tweet-metric-icon" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z"/>
+      </svg>
+      <span class="tweet-metric-count">{formatNumber(metrics.retweets)}</span>
+    </div>
+
+    <div class="tweet-metric tweet-metric-likes">
+      <svg class="tweet-metric-icon" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/>
+      </svg>
+      <span class="tweet-metric-count">{formatNumber(metrics.likes)}</span>
+    </div>
+
+    <!-- Empty spacer column -->
+    <div class="tweet-metric-spacer"></div>
+
+    <div class="tweet-metric tweet-metric-share">
+      <svg class="tweet-metric-icon" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 2.59l5.7 5.7-1.41 1.42L13 6.41V16h-2V6.41l-3.3 3.3-1.41-1.42L12 2.59zM21 15l-.02 3.51c0 1.38-1.12 2.49-2.5 2.49H5.5C4.11 21 3 19.88 3 18.5V15h2v3.5c0 .28.22.5.5.5h12.98c.28 0 .5-.22.5-.5L19 15h2z"/>
+      </svg>
+    </div>
+  </div>
+</div>
     </div>
     
     <!-- Replies -->
@@ -671,45 +683,68 @@
     height: 150px;
   }
   
-  /* Metrics Styles */
-  .tweet-metrics {
-    display: flex;
-    gap: 20px;
-    margin-top: 12px;
-  }
-  
-  .tweet-metric {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: rgb(113, 118, 123);
-    cursor: pointer;
-    transition: color 0.2s ease;
-    padding: 8px;
-    margin: -8px;
-    border-radius: 20px;
-    transition: background-color 0.2s ease;
-  }
-  
-  .tweet-metric:hover {
-    background-color: rgba(29, 155, 240, 0.1);
-  }
-  
-  .tweet-metric:hover .tweet-metric-icon,
-  .tweet-metric:hover .tweet-metric-count {
-    color: rgb(29, 155, 240);
-  }
-  
-  .tweet-metric-icon {
-    width: 18px;
-    height: 18px;
-    transition: color 0.2s ease;
-  }
-  
-  .tweet-metric-count {
-    font-size: 13px;
-    transition: color 0.2s ease;
-  }
+.tweet-metrics {
+  margin-top: 12px;
+  /* Remove centering to align with tweet body */
+}
+
+.tweet-metrics-container {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto;
+  gap: 24px;
+  align-items: center;
+  /* This will align the metrics with the tweet body text */
+}
+
+.tweet-metric {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  color: rgb(113, 118, 123);
+  cursor: pointer;
+  transition: color 0.2s ease;
+  padding: 8px;
+  margin: -8px;
+  border-radius: 20px;
+  transition: background-color 0.2s ease;
+}
+
+.tweet-metric:hover {
+  background-color: rgba(29, 155, 240, 0.1);
+}
+
+.tweet-metric:hover .tweet-metric-icon,
+.tweet-metric:hover .tweet-metric-count {
+  color: rgb(29, 155, 240);
+}
+
+.tweet-metric-icon {
+  width: 18px;
+  height: 18px;
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tweet-metric-count {
+  font-size: 13px;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+}
+
+/* Spacer column - invisible but takes up space */
+.tweet-metric-spacer {
+  /* Empty spacer - no content, just takes up grid space */
+}
+
+/* Share button has no count, just icon */
+.tweet-metric-share {
+  justify-content: flex-end;
+}
+
+.tweet-metric-share .tweet-metric-icon {
+  /* Share icon styling can be adjusted if needed */
+}
   
   /* Lightbox Styles */
   .tweet-lightbox {
