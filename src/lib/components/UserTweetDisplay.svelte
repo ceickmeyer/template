@@ -595,13 +595,13 @@ font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
   
   .tweet-quote-name {
     font-weight: 700;
-    font-size: 13px;
+    font-size: 14px;
     color: rgb(231, 233, 234);
   }
   
   .tweet-quote-handle {
     color: rgb(113, 118, 123);
-    font-size: 13px;
+    font-size: 14px;
   }
   
   .tweet-quote-time-separator {
@@ -610,13 +610,13 @@ font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
   
   .tweet-quote-time {
     color: rgb(113, 118, 123);
-    font-size: 13px;
+    font-size: 14px;
   }
   
   .tweet-quote-body {
     white-space: pre-wrap;
-    line-height: 16px;
-    font-size: 13px;
+    line-height: 20px;
+    font-size: 15px;
     color: rgb(231, 233, 234);
     margin-bottom: 8px;
   }
