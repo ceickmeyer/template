@@ -95,6 +95,7 @@
 
 <svelte:head>
   <title>Museum of Twitter</title>
+  
   <meta name="description" content="Latest tweets and discussions" />
 </svelte:head>
 
@@ -167,7 +168,7 @@
 <style>
   /* Base Twitter styling */
   :global(body) {
-    font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background-color: rgb(0, 0, 0);
     color: rgb(231, 233, 234);
     font-size: 15px;

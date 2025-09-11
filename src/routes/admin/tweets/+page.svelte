@@ -199,14 +199,14 @@
                 <!-- Admin Action Buttons -->
                 <div class="flex items-center space-x-2">
                   <a
-                    href="/tweets/{tweet.slug}"
+                    href="/admin/tweets/{tweet.slug}"
                     class="px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200"
                     title="View tweet"
                   >
                     View
                   </a>
                   <a
-                    href="/tweets/{tweet.slug}/edit"
+                    href="/admin/tweets/{tweet.slug}/edit"
                     class="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs rounded hover:bg-yellow-200"
                     title="Edit tweet"
                   >

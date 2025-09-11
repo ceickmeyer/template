@@ -80,7 +80,7 @@
       <div class="mb-6 flex items-center justify-between">
         <div>
           <a
-            href="/tweets"
+            href="/admin/tweets"
             class="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-flex items-center"
           >
             ← Back to All Tweets
@@ -93,7 +93,7 @@
         
         <div class="flex space-x-3">
           <a
-            href="/tweets/{tweet.slug}/edit"
+            href="{tweet.slug}/edit"
             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
           >
             Edit Tweet
@@ -111,7 +111,7 @@
         <h3 class="text-sm font-medium text-gray-900 mb-3">Actions</h3>
         <div class="flex space-x-3">
           <a
-            href="/tweets/{tweet.slug}/edit"
+            href="{tweet.slug}/edit"
             class="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
           >
             Edit Tweet

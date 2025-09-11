@@ -260,14 +260,14 @@
           </button>
           
           <a
-            href="/tweets/{tweet.slug}"
+            href="/admin/tweets/{tweet.slug}"
             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             View Tweet
           </a>
           
           <a
-            href="/tweets"
+            href="/admin/tweets"
             class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
           >
             Back to List

@@ -252,7 +252,7 @@
       {/if}
       
       <!-- Tweet Metrics -->
-<div class="tweet-metrics">
+<div class="tweet-metrics {clickable ? '' : 'tweet-metrics-with-border'}">
   <div class="tweet-metrics-container">
     <div class="tweet-metric tweet-metric-comments">
       <svg class="tweet-metric-icon" fill="currentColor" viewBox="0 0 24 24">
@@ -421,11 +421,11 @@
 
 <style>
   /* Tweet Container */
-  .tweet-container {
-    padding: 12px 16px;
-    color: rgb(231, 233, 234);
-    font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  }
+.tweet-container {
+  padding: 12px 16px;
+  color: rgb(231, 233, 234);
+font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
+}
   
   .tweet-clickable {
     cursor: pointer;
@@ -483,7 +483,7 @@
     font-weight: 700;
     line-height: 20px;
     color: rgb(231, 233, 234);
-    margin: 0 0 2px 0;
+    margin: 0 0 -2px 0;
   }
   
   .tweet-handle {
@@ -500,11 +500,12 @@
   
   /* Tweet Body */
   .tweet-body {
-    font-size: 15px;
+    font-size: 16px;
     line-height: 20px;
     color: rgb(231, 233, 234);
     white-space: pre-wrap;
     margin: 12px 0;
+    
   }
   
   /* Time */
@@ -688,10 +689,17 @@
   /* Remove centering to align with tweet body */
 }
 
+.tweet-metrics-with-border {
+    border-top: 1px solid rgb(47, 51, 54);
+  border-bottom: 1px solid rgb(47, 51, 54);
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
 .tweet-metrics-container {
   display: grid;
   grid-template-columns: auto auto auto 1fr auto;
-  gap: 24px;
+  gap: 94px;
   align-items: center;
   /* This will align the metrics with the tweet body text */
 }
