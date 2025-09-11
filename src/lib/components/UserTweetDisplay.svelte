@@ -501,7 +501,7 @@ font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
   /* Tweet Body */
   .tweet-body {
     font-size: 16px;
-    line-height: 20px;
+    line-height: 24px;
     color: rgb(231, 233, 234);
     white-space: pre-wrap;
     margin: 12px 0;
