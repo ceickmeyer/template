@@ -1,4 +1,4 @@
-<!-- src/routes/feed/[slug]/+page.svelte -->
+<!-- src/routes/[slug]/+page.svelte -->
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -11,6 +11,7 @@
   let errorMessage = '';
   let allTweets = [];
   let currentIndex = -1;
+  let showCopyNotification = false;
 
   // Get slug from URL
   $: slug = $page.params.slug;
@@ -89,14 +90,24 @@
     goto('/');
   }
 
-  // Update when slug changes (for navigation)
-  $: if (slug && tweet && tweet.slug !== slug) {
-    loadTweet();
+
+
+  // Update when slug changes (for navigation) - FIXED
+  $: if (slug) {
+    loadTweetAndUpdateIndex();
+  }
+
+  async function loadTweetAndUpdateIndex() {
+    await loadTweet();
+    // Update the current index after loading the new tweet
+    if (tweet && allTweets.length > 0) {
+      currentIndex = allTweets.findIndex(t => t.slug === tweet.slug);
+    }
   }
 </script>
 
 <svelte:head>
-  <title>{tweet ? `${tweet.title} / X` : 'Post / X'}</title>
+  <title>{tweet ? `${tweet.title} / Museum of Twitter` : 'Post / Museum of Twitter'}</title>
   {#if tweet}
     <meta name="description" content={tweet.title} />
   {/if}
@@ -144,9 +155,23 @@
             <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
           </svg>
         </button>
+
+
       </div>
     </div>
   </header>
+
+  <!-- Copy Notification -->
+  {#if showCopyNotification}
+    <div class="copy-notification">
+      <div class="copy-notification-content">
+        <svg class="copy-notification-icon" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M9 16.17L5.53 12.7a.996.996 0 10-1.41 1.41L9 19l10.88-10.88a.996.996 0 10-1.41-1.41L9 16.17z"/>
+        </svg>
+        Link copied to clipboard
+      </div>
+    </div>
+  {/if}
 
   <!-- Content -->
   <main class="twitter-tweet-main">
@@ -365,5 +390,4 @@
     outline: 2px solid rgb(29, 155, 240);
     outline-offset: 2px;
   }
-
 </style>

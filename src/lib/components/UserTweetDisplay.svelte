@@ -74,6 +74,34 @@
       closeLightbox();
     }
   }
+
+  let showToast = false;
+let toastMessage = '';
+
+// Add this function to handle share button click
+async function handleShare(event: MouseEvent) {
+  event.stopPropagation();
+  
+  const shareUrl = `https://www.museumoftwitter.com/${tweet.slug}`;
+  
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    showShareToast('Link copied to clipboard!');
+  } catch (err) {
+    // Fail silently as requested
+    console.error('Failed to copy to clipboard:', err);
+  }
+}
+
+function showShareToast(message: string) {
+  toastMessage = message;
+  showToast = true;
+  setTimeout(() => {
+    showToast = false;
+  }, 2500);
+}
+
+
 </script>
 
 {#if parseResult && !parseResult.success}
@@ -278,11 +306,18 @@
     <!-- Empty spacer column -->
     <div class="tweet-metric-spacer"></div>
 
-    <div class="tweet-metric tweet-metric-share">
-      <svg class="tweet-metric-icon" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2.59l5.7 5.7-1.41 1.42L13 6.41V16h-2V6.41l-3.3 3.3-1.41-1.42L12 2.59zM21 15l-.02 3.51c0 1.38-1.12 2.49-2.5 2.49H5.5C4.11 21 3 19.88 3 18.5V15h2v3.5c0 .28.22.5.5.5h12.98c.28 0 .5-.22.5-.5L19 15h2z"/>
-      </svg>
-    </div>
+<!-- svelte-ignore a11y_consider_explicit_label -->
+<button 
+  type="button"
+  class="tweet-metric tweet-metric-share tweet-share-button"
+  on:click={handleShare}
+  title="Copy link to clipboard"
+>
+  <svg class="tweet-metric-icon" fill="currentColor" viewBox="0 0 24 24">
+    <path d="M12 2.59l5.7 5.7-1.41 1.42L13 6.41V16h-2V6.41l-3.3 3.3-1.41-1.42L12 2.59zM21 15l-.02 3.51c0 1.38-1.12 2.49-2.5 2.49H5.5C4.11 21 3 19.88 3 18.5V15h2v3.5c0 .28.22.5.5.5h12.98c.28 0 .5-.22.5-.5L19 15h2z"/>
+  </svg>
+</button>
+
   </div>
 </div>
     </div>
@@ -387,6 +422,14 @@
 {:else}
   <div class="tweet-error">
     <p class="tweet-error-text">Failed to parse tweet: {tweet.title}</p>
+  </div>
+{/if}
+
+{#if showToast}
+  <div class="tweet-share-toast">
+    <div class="tweet-share-toast-content">
+      {toastMessage}
+    </div>
   </div>
 {/if}
 
@@ -582,8 +625,8 @@ font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
   }
   
   .tweet-quote-avatar {
-    width: 20px;
-    height: 20px;
+    width: 40px;
+    height: 40px;
   }
   
   .tweet-quote-author-info {
@@ -816,4 +859,59 @@ font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
     font-size: 14px;
     margin: 0;
   }
+
+  /* Share button styling */
+.tweet-share-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tweet-share-button:hover {
+  background-color: rgba(29, 155, 240, 0.1);
+  color: rgb(29, 155, 240);
+}
+
+.tweet-share-button:active {
+  background-color: rgba(29, 155, 240, 0.2);
+  transform: scale(0.95);
+}
+
+/* Toast styling */
+.tweet-share-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  animation: slideIn 0.3s ease-out;
+}
+
+.tweet-share-toast-content {
+  background-color: #1d9bf0;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-width: 300px;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 </style>
