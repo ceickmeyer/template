@@ -116,6 +116,7 @@ $: if (tweet) {
 </script>
 
 <svelte:head>
+  <!-- Debug: {JSON.stringify(parsedTweetData)} -->
   <title>{tweet ? `${tweet.title} / Museum of Twitter` : 'Post / Museum of Twitter'}</title>
   
   <!-- Always include basic meta tags -->
