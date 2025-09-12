@@ -1,6 +1,8 @@
 <!-- src/lib/components/UserTweetDisplay.svelte -->
 <script lang="ts">
   import { TweetMarkdownParser, formatLikes } from '$lib/utils/markdownParser.js';
+  import { parseTwitterText } from '$lib/utils/twitterTextParser.js';
+
   import { supabase } from '$lib/supabase.js';
   import { goto } from '$app/navigation';
   
@@ -150,8 +152,7 @@ function showShareToast(message: string) {
     <div class="tweet-content-aligned">
       <!-- Tweet Body -->
       <div class="tweet-body">
-        {parsedTweet.body}
-      </div>
+{@html parseTwitterText(parsedTweet.body)}      </div>
       
       <!-- Main Tweet Media -->
       {#if parsedTweet.media && parsedTweet.media.length > 0}
@@ -229,7 +230,7 @@ function showShareToast(message: string) {
               
               <!-- Quote Body -->
               <div class="tweet-quote-body">
-                {parsedTweet.quote.body}
+                {@html parseTwitterText(parsedTweet.quote.body)}
               </div>
               
               <!-- Quote Media -->
@@ -365,7 +366,7 @@ function showShareToast(message: string) {
                 
                 <!-- Reply Body -->
                 <div class="tweet-reply-body">
-                  {reply.body}
+                  {@html parseTwitterText(reply.body)}
                 </div>
                 
                 <!-- Reply Media -->
@@ -558,58 +559,62 @@ font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
     color: rgb(113, 118, 123);
     margin: 12px 0 16px 0;
   }
-  
-  /* Media Styles */
-  .tweet-media-container {
-    margin: 12px 0;
-  }
-  
-  .tweet-media-grid {
-    border-radius: 16px;
-    overflow: hidden;
-    border: 1px solid rgb(47, 51, 54);
-  }
-  
-  .tweet-media-grid-single {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-  
-  .tweet-media-grid-multiple {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2px;
-  }
-  
-  .tweet-media {
-    width: 100%;
-    height: 288px;
-    object-fit: cover;
-    cursor: pointer;
-    display: block;
-  }
-  
-  .tweet-video {
-    cursor: default;
-  }
-  
-  /* Media Button Wrapper */
-  .tweet-media-button {
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-  
-  .tweet-media-button img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
+/* Media Styles */
+.tweet-media-container {
+  margin: 12px 0;
+}
+
+.tweet-media-grid {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgb(47, 51, 54);
+}
+
+.tweet-media-grid-single {
+  display: grid;
+  grid-template-columns: 1fr;
+  height: auto;
+  width: fit-content;
+  margin: 0;
+}
+
+.tweet-media-grid-multiple {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+
+.tweet-media {
+  width: 100%;
+  max-height: 418px;
+  height: auto;
+  object-fit: contain;
+  cursor: pointer;
+  display: block;
+}
+
+.tweet-video {
+  cursor: default;
+}
+
+/* Media Button Wrapper */
+.tweet-media-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tweet-media-button img {
+  width: 100%;
+  max-height: 418px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
   
   /* Quote Tweet Styles */
   .tweet-quote-container {
@@ -912,6 +917,10 @@ font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+:global(.twitter-highlight) {
+  color: #1d9bf0;
 }
 
 </style>
