@@ -35,10 +35,10 @@
   
   {#if parsedTweetData}
     <meta name="description" content={parsedTweetData.body} />
-    <meta property="og:title" content="{parsedTweetData.name} (@{parsedTweetData.handle})" />
+    <meta property="og:title" content="{parsedTweetData.name} ({parsedTweetData.handle})" />
     <meta property="og:description" content="{parsedTweetData.body}" />
     <meta name="twitter:card" content={parsedTweetData.media?.length ? "summary_large_image" : "summary"} />
-    <meta name="twitter:title" content="{parsedTweetData.name} (@{parsedTweetData.handle})" />
+    <meta name="twitter:title" content="{parsedTweetData.name} ({parsedTweetData.handle})" />
     <meta name="twitter:description" content="{parsedTweetData.body}" />
     
     {#if parsedTweetData.media && parsedTweetData.media.length > 0}
