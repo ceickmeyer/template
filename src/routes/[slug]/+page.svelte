@@ -117,25 +117,32 @@ $: if (tweet) {
 
 <svelte:head>
   <title>{tweet ? `${tweet.title} / Museum of Twitter` : 'Post / Museum of Twitter'}</title>
+  
+  <!-- Always include basic meta tags -->
+  <meta property="og:site_name" content="Museum of Twitter" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="{$page.url}" />
+  
   {#if tweet && parsedTweetData}
     <meta name="description" content={parsedTweetData.body} />
     
     <!-- Open Graph tags for Discord/social previews -->
     <meta property="og:title" content="{parsedTweetData.name} (@{parsedTweetData.handle})" />
     <meta property="og:description" content="{parsedTweetData.body}" />
-    <meta property="og:type" content="article" />
-    <meta property="og:url" content="{$page.url}" />
-    <meta property="og:site_name" content="Museum of Twitter" />
     
     {#if parsedTweetData.media && parsedTweetData.media.length > 0}
       <meta property="og:image" content="{parsedTweetData.media[0]}" />
       <meta property="og:image:alt" content="Media from {parsedTweetData.name}'s tweet" />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
     {:else if parsedTweetData.avatar}
       <meta property="og:image" content="{parsedTweetData.avatar}" />
       <meta property="og:image:alt" content="{parsedTweetData.name}'s avatar" />
+      <meta property="og:image:width" content="400" />
+      <meta property="og:image:height" content="400" />
     {/if}
     
-    <!-- Twitter Card tags (also used by Discord) -->
+    <!-- Twitter Card tags -->
     <meta name="twitter:card" content={parsedTweetData.media?.length ? "summary_large_image" : "summary"} />
     <meta name="twitter:title" content="{parsedTweetData.name} (@{parsedTweetData.handle})" />
     <meta name="twitter:description" content="{parsedTweetData.body}" />
@@ -145,6 +152,11 @@ $: if (tweet) {
     {:else if parsedTweetData.avatar}
       <meta name="twitter:image" content="{parsedTweetData.avatar}" />
     {/if}
+  {:else if tweet}
+    <!-- Fallback meta tags when parsedTweetData is not available -->
+    <meta name="description" content="{tweet.title}" />
+    <meta property="og:title" content="{tweet.title}" />
+    <meta property="og:description" content="{tweet.title}" />
   {/if}
 </svelte:head>
 
