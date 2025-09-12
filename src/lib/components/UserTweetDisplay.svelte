@@ -468,7 +468,7 @@ function showShareToast(message: string) {
 .tweet-container {
   padding: 12px 16px;
   color: rgb(231, 233, 234);
-font-family: 'TwitterChirp', 'Comic Sans MS', cursive;
+font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
   
   .tweet-clickable {
