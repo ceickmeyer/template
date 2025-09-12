@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { supabase } from '$lib/supabase.js';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
+  import { TweetMarkdownParser } from '$lib/utils/markdownParser.js';
   import { onMount } from 'svelte';
 
   let tweet = null;
@@ -12,6 +13,14 @@
   let allTweets = [];
   let currentIndex = -1;
   let showCopyNotification = false;
+  let parsedTweetData = null;
+
+$: if (tweet) {
+  const parseResult = TweetMarkdownParser.parse(tweet.markdown_content);
+  if (parseResult.success) {
+    parsedTweetData = parseResult.data;
+  }
+}
 
   // Get slug from URL
   $: slug = $page.params.slug;
@@ -110,6 +119,22 @@
   <title>{tweet ? `${tweet.title} / Museum of Twitter` : 'Post / Museum of Twitter'}</title>
   {#if tweet}
     <meta name="description" content={tweet.title} />
+    
+    <!-- Open Graph tags for Discord/social previews -->
+    <meta property="og:title" content="{tweet.parsedData?.name} (@{tweet.parsedData?.handle})" />
+    <meta property="og:description" content="{tweet.parsedData?.body}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="{$page.url}" />
+    {#if tweet.parsedData?.media?.[0]}
+      <meta property="og:image" content="{tweet.parsedData.media[0]}" />
+    {:else if tweet.parsedData?.avatar}
+      <meta property="og:image" content="{tweet.parsedData.avatar}" />
+    {/if}
+    
+    <!-- Twitter Card tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{tweet.parsedData?.name} (@{tweet.parsedData?.handle})" />
+    <meta name="twitter:description" content="{tweet.parsedData?.body}" />
   {/if}
 </svelte:head>
 
