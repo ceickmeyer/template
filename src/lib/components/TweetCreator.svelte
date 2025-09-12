@@ -249,25 +249,31 @@ async function uploadFiles(files, isAvatar = false) {
     }
   }
 
-  // Clear the textarea to start fresh
-  function clearContent() {
-    markdownContent = '';
-    title = '';
-    parseResult = null;
-  }
+// Clear the textarea to start fresh
+function clearContent() {
+  markdownContent = '';
+  title = '';
+  parseResult = null;
+}
 
-  // Load different sample types
-  function loadSimpleSample() {
-    markdownContent = `[name]Steve Jobs[/name]
+// Load different sample types
+function loadSimpleSample() {
+  const template = `[name]Steve Jobs[/name]
 [handle]@stevejobs[/handle]
 [body]Just released the iPhone. Revolutionary device that will change everything.[/body]
 [time]9:19 AM · Jan 9, 2007[/time]
 [likes]1240,892,5830[/likes]`;
+  
+  if (markdownContent.trim()) {
+    markdownContent = template + '\n\n' + markdownContent;
+  } else {
+    markdownContent = template;
     title = 'iPhone Launch - Steve Jobs';
   }
+}
 
-  function loadQuoteSample() {
-    markdownContent = `[name]Elon Musk[/name]
+function loadQuoteSample() {
+  const template = `[name]Elon Musk[/name]
 [handle]@elonmusk[/handle]
 [body]Thoughts on this Mars mission timeline?[/body]
 [time]2:15 PM · Mar 15, 2024[/time]
@@ -280,11 +286,17 @@ async function uploadFiles(files, isAvatar = false) {
 [time]1:30 PM · Mar 15, 2024[/time]
 [likes]890,445,3210[/likes]
 [/quote]`;
+  
+  if (markdownContent.trim()) {
+    markdownContent = template + '\n\n' + markdownContent;
+  } else {
+    markdownContent = template;
     title = 'Mars Mission Discussion - Elon Musk';
   }
+}
 
-  function loadThreadSample() {
-    markdownContent = `[name]Mark Zuckerberg[/name] 
+function loadThreadSample() {
+  const template = `[name]Mark Zuckerberg[/name] 
 [handle]@zuck[/handle]
 [body]Excited to share some thoughts on the future of social media and virtual reality. Thread below 👇[/body]
 [time]4:20 PM · Jun 12, 2024[/time]
@@ -305,19 +317,32 @@ async function uploadFiles(files, isAvatar = false) {
 [time]4:24 PM · Jun 12, 2024[/time]
 [likes]623,198,2456[/likes]
 [/reply]`;
+  
+  if (markdownContent.trim()) {
+    markdownContent = template + '\n\n' + markdownContent;
+  } else {
+    markdownContent = template;
     title = 'Metaverse Vision Thread - Mark Zuckerberg';
   }
+}
 
-  function loadMediaSample() {
-    markdownContent = `[name]Tim Cook[/name]
+function loadMediaSample() {
+  const template = `[name]Tim Cook[/name]
 [handle]@tim_cook[/handle]
 [avatar]avatar-example.jpg[/avatar]
 [body]Behind the scenes at our latest product photoshoot. Innovation meets design. 📸✨[/body]
 [media]photo1.jpg,photo2.jpg,video1.mp4[/media]
 [time]3:45 PM · Today[/time]
 [likes]5240,2890,12450[/likes]`;
+  
+  if (markdownContent.trim()) {
+    markdownContent = template + '\n\n' + markdownContent;
+  } else {
+    markdownContent = template;
     title = 'Product Photoshoot - Tim Cook';
   }
+}
+
 
   // Clear messages after a few seconds
   $: if (successMessage) {

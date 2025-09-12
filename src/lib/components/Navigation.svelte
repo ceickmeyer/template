@@ -70,28 +70,28 @@
     <div class="md:hidden hidden" id="mobile-menu">
       <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-50 border-t border-gray-200">
         <a
-          href="/"
+          href="/admin"
           class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
         >
           Create Tweet (Markdown)
         </a>
         
         <a
-          href="/parse"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/parse' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
+          href="admin/parse"
+          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === 'admin/parse' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
         >
           Create Tweet (Clipboard)
         </a>
         
         <a
-          href="/tweets"
+          href="admin/tweets"
           class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname.startsWith('/tweets') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
         >
           Admin: View/Edit Tweets
         </a>
         
         <a
-          href="/"
+          href="admin/"
           class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname.startsWith('/') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
         >
           Public Feed

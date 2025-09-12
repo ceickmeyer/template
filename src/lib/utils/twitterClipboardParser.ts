@@ -183,24 +183,32 @@ export async function downloadImage(url: string): Promise<File | null> {
     // Handle Twitter image URLs - convert to larger format
     let downloadUrl = url;
     if (url.includes('pbs.twimg.com')) {
-      // Remove size parameters and get original
       downloadUrl = url.split('?')[0];
       if (downloadUrl.includes('&name=')) {
         downloadUrl = downloadUrl.split('&name=')[0];
       }
-      // Force larger format
       if (!downloadUrl.includes('format=') && !downloadUrl.includes('.jpg') && !downloadUrl.includes('.png')) {
         downloadUrl += '?format=jpg&name=large';
       }
     }
     
-    const response = await fetch(downloadUrl);
+    // Use CORS proxy for Twitter images
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(downloadUrl)}`;
+    
+    const response = await fetch(proxyUrl);
     if (!response.ok) throw new Error('Failed to fetch image');
     
     const blob = await response.blob();
-    const filename = `twitter-media-${Date.now()}.${blob.type.split('/')[1] || 'jpg'}`;
     
-    return new File([blob], filename, { type: blob.type });
+    // Fix MIME type and filename
+    const mimeType = downloadUrl.includes('.png') ? 'image/png' : 'image/jpeg';
+    const extension = downloadUrl.includes('.png') ? 'png' : 'jpg';
+    
+    // Create proper blob with correct MIME type
+    const properBlob = new Blob([blob], { type: mimeType });
+    const filename = `twitter-media-${Date.now()}.${extension}`;
+    
+    return new File([properBlob], filename, { type: mimeType });
   } catch (error) {
     console.error('Error downloading image:', error);
     return null;
