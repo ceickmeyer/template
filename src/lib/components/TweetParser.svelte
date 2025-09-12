@@ -156,104 +156,124 @@
     }
   }
 
-  function parseTweetToMarkdown(): string {
-    const text = extractedText.trim();
-    
-    // Simple parsing - find key patterns
-    const lines = text.split('\n').filter(line => line.trim().length > 0);
-    
-    if (lines.length < 3) {
-      // Try parsing concatenated text
-      const handleMatch = text.match(/@[\w_]+/);
-      if (!handleMatch) {
-        throw new Error('Could not find @handle in pasted content');
-      }
-      
-      const handlePos = handleMatch.index || 0;
-      const name = text.substring(0, handlePos).trim();
-      const handle = handleMatch[0];
-      
-      const afterHandle = text.substring(handlePos + handle.length).trim();
-      
-      // Find timestamp
-      const timeMatch = afterHandle.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)[^·]*(?:·[^·]*\d{4})?)/i);
-      let body = afterHandle;
-      let time = '';
-      
-      if (timeMatch) {
-        const timePos = timeMatch.index || 0;
-        body = afterHandle.substring(0, timePos).trim();
-        time = timeMatch[1].replace(/\s*·\s*\d+[KkMm]?\s*Views?\s*$/i, '').trim();
-      }
-      
-      // Clean up body
-      body = body.replace(/\s*Image\s*$/i, '').trim();
-      body = body.replace(/\s*·\s*\d+[KkMm]?\s*Views?\s*$/i, '').trim();
-      
-      return buildMarkdown(name, handle, body, time);
-    } else {
-      // Line-based parsing
-      const name = lines[0];
-      let handle = '';
-      let body = '';
-      let time = '';
-      
-      // Find handle
-      for (const line of lines) {
-        if (line.startsWith('@')) {
-          handle = line;
-          break;
-        }
-      }
-      
-      if (!handle) {
-        throw new Error('Could not find @handle in lines');
-      }
-      
-      // Find time
-      let timeLineIndex = -1;
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes('AM') || lines[i].includes('PM') || /\d{1,2}:\d{2}/.test(lines[i])) {
-          time = lines[i].replace(/\s*·\s*\d+[KkMm]?\s*Views?\s*$/i, '').trim();
-          timeLineIndex = i;
-          break;
-        }
-      }
-      
-      // Get body lines
-      const handleIndex = lines.indexOf(handle);
-      const bodyStart = handleIndex + 1;
-      const bodyEnd = timeLineIndex > 0 ? timeLineIndex : lines.length;
-      
-      body = lines.slice(bodyStart, bodyEnd)
-        .filter(line => !line.match(/^Image$/i))
-        .join('\n')
-        .trim();
-      
-      return buildMarkdown(name, handle, body, time);
+ function parseTweetToMarkdown(): string {
+  const text = extractedText.trim();
+  // Simple parsing - find key patterns
+  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  
+  if (lines.length < 3) {
+    // Try parsing concatenated text
+    const handleMatch = text.match(/@[\w_]+/);
+    if (!handleMatch) {
+      throw new Error('Could not find @handle in pasted content');
     }
+    
+    const handlePos = handleMatch.index || 0;
+    const handle = handleMatch[0];
+    
+    // Fix: Find the last space before the handle, or use the handle position
+    let nameEndPos = handlePos;
+    const textBeforeHandle = text.substring(0, handlePos);
+    const lastSpacePos = textBeforeHandle.lastIndexOf(' ');
+    if (lastSpacePos > -1) {
+      nameEndPos = lastSpacePos;
+    }
+    
+    const name = text.substring(0, nameEndPos).trim();
+    const afterHandle = text.substring(handlePos + handle.length).trim();
+    
+    // Find timestamp
+    const timeMatch = afterHandle.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)[^·]*(?:·[^·]*\d{4})?)/i);
+    let body = afterHandle;
+    let time = '';
+    
+    if (timeMatch) {
+      const timePos = timeMatch.index || 0;
+      body = afterHandle.substring(0, timePos).trim();
+      time = timeMatch[1].replace(/\s*·\s*\d+[KkMm]?\s*Views?\s*$/i, '').trim();
+    }
+    
+    // Clean up body
+    body = body.replace(/\s*Image\s*$/i, '').trim();
+    body = body.replace(/\s*·\s*\d+[KkMm]?\s*Views?\s*$/i, '').trim();
+    
+    return buildMarkdown(name, handle, body, time);
+  } else {
+    // Line-based parsing
+    const name = lines[0];
+    let handle = '';
+    let body = '';
+    let time = '';
+    
+    // Find handle
+    for (const line of lines) {
+      if (line.startsWith('@')) {
+        handle = line;
+        break;
+      }
+    }
+    
+    if (!handle) {
+      throw new Error('Could not find @handle in lines');
+    }
+    
+    // Find time
+    let timeLineIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('AM') || lines[i].includes('PM') || /\d{1,2}:\d{2}/.test(lines[i])) {
+        time = lines[i].replace(/\s*·\s*\d+[KkMm]?\s*Views?\s*$/i, '').trim();
+        timeLineIndex = i;
+        break;
+      }
+    }
+    
+    // Get body lines
+    const handleIndex = lines.indexOf(handle);
+    const bodyStart = handleIndex + 1;
+    const bodyEnd = timeLineIndex > 0 ? timeLineIndex : lines.length;
+    
+    body = lines.slice(bodyStart, bodyEnd)
+      .filter(line => !line.match(/^Image$/i))
+      .join('\n')
+      .trim();
+    
+    return buildMarkdown(name, handle, body, time);
   }
+}
 
-  function buildMarkdown(name: string, handle: string, body: string, time: string): string {
-    let markdown = `[name]${name}[/name]\n[handle]${handle}[/handle]\n[body]${body}[/body]`;
-    
-    if (time) {
-      markdown += `\n[time]${time}[/time]`;
-    }
+function generateRealisticLikes(): string {
+  // Generate realistic engagement numbers
+  // Comments are smallest, retweets ~2-5x comments, likes ~10-100x comments
+  const comments = Math.floor(Math.random() * 500) + 1; // 1-500
+  const retweets = Math.floor(comments * (2 + Math.random() * 3)); // 2-5x comments
+  const likes = Math.floor(comments * (10 + Math.random() * 90)); // 10-100x comments
+  
+  return `${comments},${retweets},${likes}`;
+}
 
-    // Add images
-    const avatarImage = extractedImages.find(img => img.isAvatar && img.uploaded && img.filename);
-    if (avatarImage) {
-      markdown += `\n[avatar]${avatarImage.filename}[/avatar]`;
-    }
-
-    const mediaImages = extractedImages.filter(img => !img.isAvatar && img.uploaded && img.filename).map(img => img.filename);
-    if (mediaImages.length > 0) {
-      markdown += `\n[media]${mediaImages.join(',')}[/media]`;
-    }
-
-    return markdown;
+function buildMarkdown(name: string, handle: string, body: string, time: string): string {
+  let markdown = `[name]${name}[/name]\n[handle]${handle}[/handle]\n[body]${body}[/body]`;
+  
+  if (time) {
+    markdown += `\n[time]${time}[/time]`;
   }
+  
+  // Add likes
+  markdown += `\n[likes]${generateRealisticLikes()}[/likes]`;
+  
+  // Add images with line breaks
+  const avatarImage = extractedImages.find(img => img.isAvatar && img.uploaded && img.filename);
+  if (avatarImage) {
+    markdown += `\n[avatar]${avatarImage.filename}[/avatar]`;
+  }
+  
+  const mediaImages = extractedImages.filter(img => !img.isAvatar && img.uploaded && img.filename).map(img => img.filename);
+  if (mediaImages.length > 0) {
+    markdown += `\n[media]${mediaImages.join(',')}[/media]`;
+  }
+  
+  return markdown;
+}
 
   async function handleParseClick() {
     try {

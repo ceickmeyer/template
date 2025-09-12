@@ -5,6 +5,7 @@ export interface ParsedTwitterData {
   handle: string;
   body: string;
   time: string;
+  views?: string;
   avatarUrl?: string;
   mediaUrls: string[];
   links: string[];
@@ -16,24 +17,41 @@ export function parseTwitterClipboard(htmlContent: string): ParsedTwitterData | 
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlContent, 'text/html');
     
-    // Extract user name
+    // Extract user name and handle more carefully
     const nameElement = doc.querySelector('[data-testid="User-Name"]');
-    const name = nameElement?.textContent?.trim() || '';
+    let name = nameElement?.textContent?.trim() || '';
     
     // Extract handle - look for @username pattern
     const handleMatch = htmlContent.match(/@[\w]+/);
-    const handle = handleMatch ? handleMatch[0] : '';
+    let handle = handleMatch ? handleMatch[0] : '';
+    
+    // Fix the name/handle merging issue
+    if (name && handle && name.includes('@')) {
+      // If name contains @, it likely got merged with handle
+      const atIndex = name.indexOf('@');
+      if (atIndex > 0) {
+        // Split at the @ symbol
+        const actualName = name.substring(0, atIndex).trim();
+        const possibleHandle = '@' + name.substring(atIndex + 1).trim();
+        
+        // Use the split name and verify handle
+        name = actualName;
+        if (possibleHandle.match(/@[\w]+/)) {
+          handle = possibleHandle;
+        }
+      }
+    }
+    
+    // Ensure handle starts with @ if it doesn't already
+    if (handle && !handle.startsWith('@')) {
+      handle = '@' + handle;
+    }
     
     // Extract tweet text with better line break handling
     const tweetTextElement = doc.querySelector('[data-testid="tweetText"]');
     let body = '';
     
     if (tweetTextElement) {
-      // Get the inner HTML and process it more carefully
-      const innerHTML = tweetTextElement.innerHTML;
-      
-      // Look for patterns that indicate line breaks in Twitter's structure
-      // Twitter often uses specific whitespace patterns or nested spans
       body = extractTextWithBetterLineBreaks(tweetTextElement);
     }
     
@@ -41,7 +59,7 @@ export function parseTwitterClipboard(htmlContent: string): ParsedTwitterData | 
     const timeElement = doc.querySelector('time');
     const time = timeElement?.textContent?.trim() || '';
     
-    // Extract view count (but we won't use it per your request)
+    // Extract view count
     const viewsMatch = htmlContent.match(/(\d+(?:,\d+)*)\s*Views?/i);
     const views = viewsMatch ? viewsMatch[1] : '';
     
@@ -89,24 +107,13 @@ export function parseTwitterClipboard(htmlContent: string): ParsedTwitterData | 
 }
 
 function extractTextWithBetterLineBreaks(element: Element): string {
-  // Get all text content first, then process it
-  const rawText = element.textContent || '';
-  
-  // Look for the pattern where there's a link followed by text
-  // Twitter often structures this as: <a>link</a><span>whitespace</span><span>more text</span>
   let result = '';
-  let parts: string[] = [];
   
-  // Walk through child nodes to capture structure
+  // Walk through child nodes to capture structure and preserve explicit line breaks
   element.childNodes.forEach((node) => {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent || '';
-      if (text.trim()) {
-        parts.push(text.trim());
-      } else if (text.includes('\n') || text.length > 2) {
-        // This might be a line break indicator
-        parts.push('\n');
-      }
+      result += text;
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as Element;
       
@@ -115,41 +122,21 @@ function extractTextWithBetterLineBreaks(element: Element): string {
         const href = el.getAttribute('href') || '';
         
         if (href.startsWith('http')) {
-          parts.push(`${linkText} (${href})`);
+          result += `${linkText} (${href})`;
         } else {
-          parts.push(linkText);
+          result += linkText;
         }
       } else if (el.tagName === 'BR') {
-        parts.push('\n');
+        result += '\n';
       } else {
-        // For spans and other elements, check if they contain text or line breaks
-        const childText = el.textContent?.trim() || '';
-        const childHTML = el.innerHTML || '';
-        
-        if (childText) {
-          parts.push(childText);
-        } else if (childHTML.includes('\n') || el.tagName === 'SPAN') {
-          // Empty span might indicate a line break
-          parts.push('\n');
-        }
+        // Recursively process other elements
+        result += extractTextWithBetterLineBreaks(el);
       }
     }
   });
   
-  // Join parts and clean up
-  result = parts.join('').replace(/\n+/g, '\n').trim();
-  
-  // If we still don't have line breaks but the raw text suggests there should be some,
-  // try to infer them from the structure
-  if (!result.includes('\n') && rawText.length > 50) {
-    // Look for patterns that suggest line breaks
-    const sentences = result.split(/(?<=[.!?])\s+/);
-    if (sentences.length > 1) {
-      result = sentences.join('\n');
-    }
-  }
-  
-  return result;
+  // Only clean up excessive whitespace, preserve intentional line breaks
+  return result.replace(/[ \t]+/g, ' ').replace(/\n[ \t]+/g, '\n').trim();
 }
 
 function extractTextWithLinks(element: Element): string {
@@ -220,31 +207,42 @@ export async function downloadImage(url: string): Promise<File | null> {
   }
 }
 
+function generateRealisticLikes(): string {
+  // Generate realistic engagement numbers
+  // Comments are smallest, retweets ~2-5x comments, likes ~10-100x comments
+  const comments = Math.floor(Math.random() * 500) + 1; // 1-500
+  const retweets = Math.floor(comments * (2 + Math.random() * 3)); // 2-5x comments
+  const likes = Math.floor(comments * (10 + Math.random() * 90)); // 10-100x comments
+  return `${comments},${retweets},${likes}`;
+}
+
 export function convertToMarkdown(parsedData: ParsedTwitterData, uploadedFiles: string[] = []): string {
-  let markdown = `[name]${parsedData.name}[/name] [handle]${parsedData.handle}[/handle] [body]${parsedData.body}[/body]`;
+  let markdown = '';
+  
+  // Build markdown with line breaks for better readability
+  markdown += `[name]${parsedData.name}[/name]\n`;
+  markdown += `[handle]${parsedData.handle}[/handle]\n`;
+  markdown += `[body]${parsedData.body}[/body]\n`;
   
   if (parsedData.time) {
-    markdown += ` [time]${parsedData.time}[/time]`;
+    markdown += `[time]${parsedData.time}[/time]\n`;
   }
   
-  // Add likes in the format: comments,retweets,likes
-  // Since we don't have individual metrics from clipboard, we'll use views as likes
-  if (parsedData.views) {
-    // Default format: 0 comments, 0 retweets, views as likes
-    markdown += ` [likes]0,0,${parsedData.views.replace(/,/g, '')}[/likes]`;
-  }
+  // Add realistic likes using the generator function
+  markdown += `[likes]${generateRealisticLikes()}[/likes]\n`;
   
   // Add avatar if we have uploaded files for it
   const avatarFile = uploadedFiles.find(f => f.includes('avatar'));
   if (avatarFile) {
-    markdown += ` [avatar]${avatarFile}[/avatar]`;
+    markdown += `[avatar]${avatarFile}[/avatar]\n`;
   }
   
   // Add media if we have uploaded files for it - exclude avatar files
   const mediaFiles = uploadedFiles.filter(f => f.includes('media') && !f.includes('avatar'));
   if (mediaFiles.length > 0) {
-    markdown += ` [media]${mediaFiles.join(',')}[/media]`;
+    markdown += `[media]${mediaFiles.join(',')}[/media]\n`;
   }
   
-  return markdown;
+  // Remove trailing newline
+  return markdown.trim();
 }
