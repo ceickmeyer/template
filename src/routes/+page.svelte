@@ -1,9 +1,13 @@
+<!-- src/routes/+page.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase.js';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
+  import FeaturedTweet from '$lib/components/FeaturedTweet.svelte';
+  import { getCurrentFeaturedTweet, checkAndRotateDaily, initializeFeaturedTweet } from '$lib/utils/featuredTweet.js';
   
   let tweets = [];
+  let featuredTweet = null;
   let loading = true;
   let loadingMore = false;
   let hasMore = true;
@@ -12,10 +16,30 @@
   
   const TWEETS_PER_PAGE = 20;
   
-  onMount(() => {
-    loadTweets();
+  onMount(async () => {
+    // Initialize featured tweet system and check for daily rotation
+    await loadFeaturedTweet();
+    await loadTweets();
     setupInfiniteScroll();
   });
+
+  async function loadFeaturedTweet() {
+    try {
+      // Check if we need to rotate daily
+      await checkAndRotateDaily();
+      
+      // Get current featured tweet
+      featuredTweet = await getCurrentFeaturedTweet();
+      
+      // If no featured tweet exists, initialize the system
+      if (!featuredTweet) {
+        featuredTweet = await initializeFeaturedTweet();
+      }
+    } catch (err) {
+      console.error('Error loading featured tweet:', err);
+      // Don't show error to user, just continue without featured tweet
+    }
+  }
 
   async function loadTweets(append = false) {
     if (append) {
@@ -30,6 +54,11 @@
         .select('*')
         .order('created_at', { ascending: false })
         .limit(TWEETS_PER_PAGE);
+
+      // Exclude the featured tweet from regular feed
+      if (featuredTweet) {
+        query = query.neq('id', featuredTweet.id);
+      }
 
       // For pagination, load tweets older than the last one
       if (append && lastTweetId) {
@@ -95,7 +124,6 @@
 
 <svelte:head>
   <title>Museum of Twitter</title>
-  
   <meta name="description" content="Latest tweets and discussions" />
 </svelte:head>
 
@@ -106,11 +134,12 @@
     <div class="twitter-header-inner">
       <h1 class="twitter-title">Museum of Twitter</h1>
       <!-- Add admin link -->
-<a href="https://www.tiktok.com/@thejakechristie" class="twitter-admin-link tiktok-link">
-  <svg class="tiktok-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-  </svg>
-</a>    </div>
+      <a href="https://www.tiktok.com/@thejakechristie" class="twitter-admin-link tiktok-link">
+        <svg class="tiktok-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+        </svg>
+      </a>
+    </div>
   </div>
 
   <!-- Feed Timeline -->
@@ -133,7 +162,7 @@
           </button>
         </div>
       </div>
-    {:else if tweets.length === 0}
+    {:else if tweets.length === 0 && !featuredTweet}
       <div class="twitter-empty">
         <div class="twitter-empty-content">
           <h2 class="twitter-empty-title">Welcome to your timeline!</h2>
@@ -144,7 +173,12 @@
         </div>
       </div>
     {:else}
-      <!-- Tweet Articles -->
+      <!-- Featured Tweet (appears only once at top) -->
+      {#if featuredTweet}
+        <FeaturedTweet tweet={featuredTweet} />
+      {/if}
+
+      <!-- Regular Tweet Articles -->
       {#each tweets as tweet (tweet.id)}
         <article class="twitter-tweet-article">
           <UserTweetDisplay {tweet} clickable={true} />
@@ -156,7 +190,7 @@
         <div class="twitter-loading-more">
           <div class="twitter-spinner"></div>
         </div>
-      {:else if !hasMore && tweets.length > 0}
+      {:else if !hasMore && (tweets.length > 0 || featuredTweet)}
         <div class="twitter-end">
           <div class="twitter-end-content">
             <p class="twitter-end-text">You're all caught up</p>
@@ -441,13 +475,12 @@
   }
 
   .tiktok-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 
-.tiktok-icon {
-  flex-shrink: 0;
-}
-
+  .tiktok-icon {
+    flex-shrink: 0;
+  }
 </style>
