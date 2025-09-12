@@ -1,85 +1,11 @@
 <!-- src/routes/[slug]/+page.svelte -->
 <script lang="ts">
-  import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { supabase } from '$lib/supabase.js';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
-  import { TweetMarkdownParser } from '$lib/utils/markdownParser.js';
-  import { onMount } from 'svelte';
 
-  let tweet = null;
-  let loading = true;
-  let errorMessage = '';
-  let allTweets = [];
-  let currentIndex = -1;
-  let showCopyNotification = false;
-  let parsedTweetData = null;
-
-$: if (tweet) {
-  const parseResult = TweetMarkdownParser.parse(tweet.markdown_content);
-  if (parseResult.success) {
-    parsedTweetData = parseResult.data;
-  }
-}
-
-  // Get slug from URL
-  $: slug = $page.params.slug;
-
-  onMount(async () => {
-    await loadTweet();
-    await loadAllTweets();
-  });
-
-  async function loadTweet() {
-    loading = true;
-    errorMessage = '';
-
-    try {
-      const { data, error } = await supabase
-        .from('tweets')
-        .select('*')
-        .eq('slug', slug)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          errorMessage = 'Tweet not found';
-        } else {
-          throw error;
-        }
-        return;
-      }
-
-      tweet = data;
-
-    } catch (error) {
-      console.error('Error loading tweet:', error);
-      errorMessage = 'Failed to load tweet';
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function loadAllTweets() {
-    try {
-      const { data, error } = await supabase
-        .from('tweets')
-        .select('id, slug, title, created_at')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      allTweets = data || [];
-      
-      // Find current tweet index
-      if (tweet) {
-        currentIndex = allTweets.findIndex(t => t.slug === tweet.slug);
-      }
-
-    } catch (error) {
-      console.error('Error loading all tweets:', error);
-    }
-  }
+  export let data;
+  
+  $: ({ tweet, parsedTweetData, allTweets, currentIndex } = data);
 
   function goToPrevious() {
     if (currentIndex > 0) {
@@ -98,32 +24,15 @@ $: if (tweet) {
   function goBackToFeed() {
     goto('/');
   }
-
-
-
-  // Update when slug changes (for navigation) - FIXED
-  $: if (slug) {
-    loadTweetAndUpdateIndex();
-  }
-
-  async function loadTweetAndUpdateIndex() {
-    await loadTweet();
-    // Update the current index after loading the new tweet
-    if (tweet && allTweets.length > 0) {
-      currentIndex = allTweets.findIndex(t => t.slug === tweet.slug);
-    }
-  }
 </script>
 
 <svelte:head>
-  <title>{tweet ? `${tweet.title} / Museum of Twitter` : 'Post / Museum of Twitter'}</title>
+  <title>{tweet.title} / Museum of Twitter</title>
   
-  <!-- Always include basic meta tags -->
   <meta property="og:site_name" content="Museum of Twitter" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="{$page.url}" />
+  <meta property="og:url" content="https://www.museumoftwitter.com/{tweet.slug}" />
   
-  <!-- Meta tags that work even if parsedTweetData loads late -->
   {#if parsedTweetData}
     <meta name="description" content={parsedTweetData.body} />
     <meta property="og:title" content="{parsedTweetData.name} (@{parsedTweetData.handle})" />
@@ -133,20 +42,19 @@ $: if (tweet) {
     <meta name="twitter:description" content="{parsedTweetData.body}" />
     
     {#if parsedTweetData.media && parsedTweetData.media.length > 0}
-      <meta property="og:image" content="{parsedTweetData.media[0].startsWith('http') ? parsedTweetData.media[0] : `https://www.museumoftwitter.com/storage/tweet-media/${parsedTweetData.media[0]}`}" />
+      <meta property="og:image" content="https://yfjsgbekrbrhytucapha.supabase.co/storage/v1/object/public/tweet-media/{parsedTweetData.media[0]}" />
       <meta property="og:image:alt" content="Media from {parsedTweetData.name}'s tweet" />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
-      <meta name="twitter:image" content="{parsedTweetData.media[0].startsWith('http') ? parsedTweetData.media[0] : `https://www.museumoftwitter.com/storage/tweet-media/${parsedTweetData.media[0]}`}" />
+      <meta name="twitter:image" content="https://yfjsgbekrbrhytucapha.supabase.co/storage/v1/object/public/tweet-media/{parsedTweetData.media[0]}" />
     {:else if parsedTweetData.avatar}
-      <meta property="og:image" content="{parsedTweetData.avatar.startsWith('http') ? parsedTweetData.avatar : `https://www.museumoftwitter.com/storage/tweet-media/${parsedTweetData.avatar}`}" />
+      <meta property="og:image" content="https://yfjsgbekrbrhytucapha.supabase.co/storage/v1/object/public/tweet-media/{parsedTweetData.avatar}" />
       <meta property="og:image:alt" content="{parsedTweetData.name}'s avatar" />
       <meta property="og:image:width" content="400" />
       <meta property="og:image:height" content="400" />
-      <meta name="twitter:image" content="{parsedTweetData.avatar.startsWith('http') ? parsedTweetData.avatar : `https://www.museumoftwitter.com/storage/tweet-media/${parsedTweetData.avatar}`}" />
+      <meta name="twitter:image" content="https://yfjsgbekrbrhytucapha.supabase.co/storage/v1/object/public/tweet-media/{parsedTweetData.avatar}" />
     {/if}
-  {:else if tweet}
-    <!-- Fallback for when parsing fails -->
+  {:else}
     <meta name="description" content="{tweet.title}" />
     <meta property="og:title" content="{tweet.title}" />
     <meta property="og:description" content="{tweet.title}" />
@@ -156,12 +64,9 @@ $: if (tweet) {
   {/if}
 </svelte:head>
 
-<!-- Twitter-style single tweet page -->
 <div class="twitter-tweet-page">
-  <!-- Header with Navigation -->
   <header class="twitter-tweet-header">
     <div class="twitter-tweet-header-inner">
-      <!-- Back Button -->
       <button 
         class="twitter-nav-button twitter-back-button"
         on:click={goBackToFeed}
@@ -172,10 +77,8 @@ $: if (tweet) {
         </svg>
       </button>
 
-      <!-- Title -->
       <h1 class="twitter-tweet-title">Post</h1>
 
-      <!-- Navigation Buttons -->
       <div class="twitter-tweet-nav">
         <button 
           class="twitter-nav-button twitter-prev-button"
@@ -198,59 +101,18 @@ $: if (tweet) {
             <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
           </svg>
         </button>
-
-
       </div>
     </div>
   </header>
 
-  <!-- Copy Notification -->
-  {#if showCopyNotification}
-    <div class="copy-notification">
-      <div class="copy-notification-content">
-        <svg class="copy-notification-icon" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M9 16.17L5.53 12.7a.996.996 0 10-1.41 1.41L9 19l10.88-10.88a.996.996 0 10-1.41-1.41L9 16.17z"/>
-        </svg>
-        Link copied to clipboard
-      </div>
-    </div>
-  {/if}
-
-  <!-- Content -->
   <main class="twitter-tweet-main">
-
-      {#if parsedTweetData}
-    <pre>{JSON.stringify(parsedTweetData, null, 2)}</pre>
-  {/if}
-
-    {#if loading}
-      <div class="twitter-tweet-loading">
-        <div class="twitter-spinner"></div>
-      </div>
-    {:else if errorMessage}
-      <div class="twitter-tweet-error">
-        <div class="twitter-tweet-error-content">
-          <h2 class="twitter-tweet-error-title">Something went wrong</h2>
-          <p class="twitter-tweet-error-text">{errorMessage}</p>
-          <button
-            class="twitter-retry-btn"
-            on:click={goBackToFeed}
-          >
-            Back to timeline
-          </button>
-        </div>
-      </div>
-    {:else if tweet}
-      <!-- Tweet Content -->
-      <article class="twitter-tweet-content">
-        <UserTweetDisplay {tweet} clickable={false} />
-      </article>
-    {/if}
+    <article class="twitter-tweet-content">
+      <UserTweetDisplay {tweet} clickable={false} />
+    </article>
   </main>
 </div>
 
 <style>
-  /* Base Twitter styling - matches feed page */
   :global(body) {
     font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background-color: rgb(0, 0, 0);
@@ -261,7 +123,6 @@ $: if (tweet) {
     padding: 0;
   }
 
-  /* Page Container */
   .twitter-tweet-page {
     max-width: 600px;
     margin: 0 auto;
@@ -272,7 +133,6 @@ $: if (tweet) {
     position: relative;
   }
 
-  /* Header */
   .twitter-tweet-header {
     position: sticky;
     top: 0;
@@ -301,7 +161,6 @@ $: if (tweet) {
     text-align: center;
   }
 
-  /* Navigation Buttons */
   .twitter-nav-button {
     display: flex;
     align-items: center;
@@ -336,83 +195,10 @@ $: if (tweet) {
     gap: 8px;
   }
 
-  /* Main Content */
   .twitter-tweet-main {
     min-height: calc(100vh - 53px);
   }
 
-  .twitter-tweet-content {
-    /* Tweet content container - no padding since UserTweetDisplay handles it */
-  }
-
-  /* Loading State */
-  .twitter-tweet-loading {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 40px 20px;
-    min-height: 200px;
-  }
-
-  .twitter-spinner {
-    width: 32px;
-    height: 32px;
-    border: 2px solid rgb(47, 51, 54);
-    border-top: 2px solid rgb(29, 155, 240);
-    border-radius: 50%;
-    animation: twitter-spin 1s linear infinite;
-  }
-
-  @keyframes twitter-spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-
-  /* Error State */
-  .twitter-tweet-error {
-    padding: 32px 16px;
-    text-align: center;
-  }
-
-  .twitter-tweet-error-content {
-    max-width: 320px;
-    margin: 0 auto;
-  }
-
-  .twitter-tweet-error-title {
-    font-size: 31px;
-    font-weight: 800;
-    line-height: 36px;
-    color: rgb(231, 233, 234);
-    margin: 0 0 8px 0;
-  }
-
-  .twitter-tweet-error-text {
-    font-size: 15px;
-    line-height: 20px;
-    color: rgb(113, 118, 123);
-    margin: 0 0 28px 0;
-  }
-
-  .twitter-retry-btn {
-    background-color: rgb(29, 155, 240);
-    border: 1px solid rgba(0, 0, 0, 0);
-    border-radius: 9999px;
-    color: rgb(255, 255, 255);
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 20px;
-    padding: 8px 24px;
-    transition: all 0.2s ease-in-out;
-  }
-
-  .twitter-retry-btn:hover {
-    background-color: rgb(26, 140, 216);
-  }
-
-  /* Responsive design */
   @media (max-width: 688px) {
     .twitter-tweet-page {
       border-left: none;
@@ -428,13 +214,7 @@ $: if (tweet) {
     }
   }
 
-  /* Focus and accessibility */
   .twitter-nav-button:focus-visible {
-    outline: 2px solid rgb(29, 155, 240);
-    outline-offset: 2px;
-  }
-
-  .twitter-retry-btn:focus-visible {
     outline: 2px solid rgb(29, 155, 240);
     outline-offset: 2px;
   }
