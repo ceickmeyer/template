@@ -117,24 +117,34 @@ $: if (tweet) {
 
 <svelte:head>
   <title>{tweet ? `${tweet.title} / Museum of Twitter` : 'Post / Museum of Twitter'}</title>
-  {#if tweet}
-    <meta name="description" content={tweet.title} />
+  {#if tweet && parsedTweetData}
+    <meta name="description" content={parsedTweetData.body} />
     
     <!-- Open Graph tags for Discord/social previews -->
-    <meta property="og:title" content="{tweet.parsedData?.name} (@{tweet.parsedData?.handle})" />
-    <meta property="og:description" content="{tweet.parsedData?.body}" />
+    <meta property="og:title" content="{parsedTweetData.name} (@{parsedTweetData.handle})" />
+    <meta property="og:description" content="{parsedTweetData.body}" />
     <meta property="og:type" content="article" />
     <meta property="og:url" content="{$page.url}" />
-    {#if tweet.parsedData?.media?.[0]}
-      <meta property="og:image" content="{tweet.parsedData.media[0]}" />
-    {:else if tweet.parsedData?.avatar}
-      <meta property="og:image" content="{tweet.parsedData.avatar}" />
+    <meta property="og:site_name" content="Museum of Twitter" />
+    
+    {#if parsedTweetData.media && parsedTweetData.media.length > 0}
+      <meta property="og:image" content="{parsedTweetData.media[0]}" />
+      <meta property="og:image:alt" content="Media from {parsedTweetData.name}'s tweet" />
+    {:else if parsedTweetData.avatar}
+      <meta property="og:image" content="{parsedTweetData.avatar}" />
+      <meta property="og:image:alt" content="{parsedTweetData.name}'s avatar" />
     {/if}
     
-    <!-- Twitter Card tags -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="{tweet.parsedData?.name} (@{tweet.parsedData?.handle})" />
-    <meta name="twitter:description" content="{tweet.parsedData?.body}" />
+    <!-- Twitter Card tags (also used by Discord) -->
+    <meta name="twitter:card" content={parsedTweetData.media?.length ? "summary_large_image" : "summary"} />
+    <meta name="twitter:title" content="{parsedTweetData.name} (@{parsedTweetData.handle})" />
+    <meta name="twitter:description" content="{parsedTweetData.body}" />
+    
+    {#if parsedTweetData.media && parsedTweetData.media.length > 0}
+      <meta name="twitter:image" content="{parsedTweetData.media[0]}" />
+    {:else if parsedTweetData.avatar}
+      <meta name="twitter:image" content="{parsedTweetData.avatar}" />
+    {/if}
   {/if}
 </svelte:head>
 
