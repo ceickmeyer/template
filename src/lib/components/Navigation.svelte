@@ -4,6 +4,7 @@
   // Show navigation only on admin pages
   $: showNavigation = $page.url.pathname.startsWith('/admin');
 </script>
+
 {#if showNavigation}
   <nav class="bg-white border-b border-gray-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -35,6 +36,13 @@
               class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname.startsWith('/admin/tweets') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
             >
               Admin: View/Edit Tweets
+            </a>
+            
+            <a
+              href="/admin/featured"
+              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname === '/admin/featured' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
+            >
+              Featured Tweets
             </a>
             
             <a
@@ -70,29 +78,36 @@
     <div class="md:hidden hidden" id="mobile-menu">
       <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-50 border-t border-gray-200">
         <a
-          href="/admin"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
+          href="/admin/create"
+          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/admin/create' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
         >
           Create Tweet (Markdown)
         </a>
         
         <a
-          href="admin/parse"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === 'admin/parse' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
+          href="/admin/parse"
+          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/admin/parse' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
         >
           Create Tweet (Clipboard)
         </a>
         
         <a
-          href="admin/tweets"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname.startsWith('/tweets') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
+          href="/admin/tweets"
+          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname.startsWith('/admin/tweets') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
         >
           Admin: View/Edit Tweets
         </a>
         
         <a
-          href="admin/"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname.startsWith('/') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
+          href="/admin/featured"
+          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/admin/featured' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
+        >
+          Featured Tweets
+        </a>
+        
+        <a
+          href="/"
+          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
         >
           Public Feed
         </a>

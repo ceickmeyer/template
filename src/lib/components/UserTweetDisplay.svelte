@@ -731,25 +731,57 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
   .tweet-reply-media {
     height: 150px;
   }
-  
-.tweet-metrics {
+  .tweet-metrics {
   margin-top: 12px;
-  /* Remove centering to align with tweet body */
 }
 
 .tweet-metrics-with-border {
-    border-top: 1px solid rgb(47, 51, 54);
+  border-top: 1px solid rgb(47, 51, 54);
   border-bottom: 1px solid rgb(47, 51, 54);
   padding-top: 12px;
   padding-bottom: 12px;
 }
 
 .tweet-metrics-container {
-  display: grid;
-  grid-template-columns: auto auto auto 1fr auto;
-  gap: 94px;
+  display: flex;
   align-items: center;
-  /* This will align the metrics with the tweet body text */
+  width: 100%;
+  /* Mobile: evenly distribute all buttons */
+  justify-content: space-between;
+}
+
+/* Desktop: switch to absolute positioning for first 3 buttons, flex for share */
+@media (min-width: 640px) {
+  .tweet-metrics-container {
+    position: relative;
+    justify-content: flex-end; /* This positions the share button on the right */
+  }
+  
+  /* Position comments, retweets, likes at fixed distances from left */
+  .tweet-metric-comments {
+    position: absolute;
+    left: 0px;
+  }
+  
+  .tweet-metric-retweets {
+    position: absolute;
+    left: 150px;
+  }
+  
+  .tweet-metric-likes {
+    position: absolute;
+    left: 300px;
+  }
+  
+  /* Share button stays in normal flow, pushed right by justify-content: flex-end */
+  .tweet-metric-share {
+    position: static;
+  }
+}
+
+/* Remove the spacer - we don't need it anymore */
+.tweet-metric-spacer {
+  display: none;
 }
 
 .tweet-metric {
@@ -764,6 +796,7 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
   margin: -8px;
   border-radius: 20px;
   transition: background-color 0.2s ease;
+  flex-shrink: 0;
 }
 
 .tweet-metric:hover {
@@ -787,23 +820,14 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
   transition: color 0.2s ease;
   white-space: nowrap;
 }
-
-/* Spacer column - invisible but takes up space */
-.tweet-metric-spacer {
-  /* Empty spacer - no content, just takes up grid space */
-}
-
-/* Share button has no count, just icon */
+/* Share button stays right-aligned */
 .tweet-metric-share {
   justify-content: flex-end;
-}
-
-.tweet-metric-share .tweet-metric-icon {
-  /* Share icon styling can be adjusted if needed */
+  flex-shrink: 0;
 }
   
   /* Lightbox Styles */
-  .tweet-lightbox {
+.tweet-lightbox {
     position: fixed;
     top: 0;
     left: 0;
@@ -814,15 +838,15 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
     align-items: center;
     justify-content: center;
     z-index: 1000;
-  }
-  
-  .tweet-lightbox-content {
+}
+
+.tweet-lightbox-content {
     position: relative;
-    max-width: 90vw;
-    max-height: 90vh;
-  }
-  
-  .tweet-lightbox-close {
+    /* Remove max-width/max-height from container */
+    /* Let the image control the container size */
+}
+
+.tweet-lightbox-close {
     position: absolute;
     top: -40px;
     right: 0;
@@ -833,24 +857,26 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
     padding: 8px;
     border-radius: 50%;
     transition: background-color 0.2s ease;
-  }
-  
-  .tweet-lightbox-close:hover {
+}
+
+.tweet-lightbox-close:hover {
     background-color: rgba(255, 255, 255, 0.1);
-  }
-  
-  .tweet-lightbox-close-icon {
+}
+
+.tweet-lightbox-close-icon {
     width: 24px;
     height: 24px;
-  }
-  
-  .tweet-lightbox-image {
-    max-width: 100%;
-    max-height: 100%;
+}
+
+.tweet-lightbox-image {
+    /* Display at natural size, but constrain if too big */
+    max-width: 90vw;
+    max-height: 90vh;
+    /* Don't set width/height to let it use natural dimensions */
     object-fit: contain;
     border-radius: 8px;
-  }
-  
+    display: block;
+}
   /* Error Styles */
   .tweet-error {
     padding: 16px;

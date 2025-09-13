@@ -134,7 +134,7 @@
   }
 
   .twitter-tweet-header {
-    position: sticky;
+    position: top;
     top: 0;
     z-index: 1000;
     background-color: rgba(0, 0, 0, 0.85);
