@@ -190,88 +190,91 @@ function showShareToast(message: string) {
         </div>
       {/if}
       
-      <!-- Quote Tweet -->
-      {#if parsedTweet.quote}
-        <div class="tweet-quote-container">
-          <div class="tweet-quote-content">
-            <!-- Quote Avatar -->
-            <div class="tweet-quote-avatar-container">
-              {#if parsedTweet.quote.avatar}
-                <img 
-                  src={getMediaUrl(parsedTweet.quote.avatar)} 
-                  alt="{parsedTweet.quote.name} avatar"
-                  class="tweet-quote-avatar tweet-avatar-image"
-                  loading="lazy"
-                />
-              {:else}
-                <div class="tweet-quote-avatar tweet-avatar-initials {getAvatarColor(parsedTweet.quote.name)}">
-                  {getInitials(parsedTweet.quote.name)}
-                </div>
-              {/if}
-            </div>
-            
-            <!-- Quote Content -->
-            <div class="tweet-quote-body-container">
-              <!-- Quote Author Info -->
-              <div class="tweet-quote-author-info">
-                <span class="tweet-quote-name">
-                  {parsedTweet.quote.name}
-                </span>
-                <span class="tweet-quote-handle">
-                  {parsedTweet.quote.handle}
-                </span>
-                {#if parsedTweet.quote.time}
-                  <span class="tweet-quote-time-separator">·</span>
-                  <span class="tweet-quote-time">
-                    {parsedTweet.quote.time}
-                  </span>
-                {/if}
-              </div>
-              
-              <!-- Quote Body -->
-              <div class="tweet-quote-body">
-                {@html parseTwitterText(parsedTweet.quote.body)}
-              </div>
-              
-              <!-- Quote Media -->
-              {#if parsedTweet.quote.media && parsedTweet.quote.media.length > 0}
-                <div class="tweet-quote-media-container">
-                  <div class="tweet-quote-media-grid tweet-media-grid-{parsedTweet.quote.media.length === 1 ? 'single' : 'multiple'}">
-                    {#each parsedTweet.quote.media as mediaFile}
-                      <div class="tweet-quote-media-item">
-                        {#if mediaFile.endsWith('.mp4') || mediaFile.endsWith('.mov') || mediaFile.includes('video')}
-                          <video
-                            src={getMediaUrl(mediaFile)}
-                            class="tweet-quote-media tweet-quote-video"
-                            controls
-                            preload="metadata"
-                            on:click={(e) => e.stopPropagation()}
-                          >
-                            <track kind="captions">
-                          </video>
-                        {:else}
-                          <button
-                            type="button"
-                            class="tweet-media-button"
-                            on:click={(e) => handleMediaClick(e, getMediaUrl(mediaFile))}
-                          >
-                            <img
-                              src={getMediaUrl(mediaFile)}
-                              alt="Quote media"
-                              class="tweet-quote-media tweet-quote-image"
-                              loading="lazy"
-                            />
-                          </button>
-                        {/if}
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            </div>
-          </div>
+<!-- Quote Tweet -->
+{#if parsedTweet.quote}
+<div class="tweet-quote-container">
+  <div class="tweet-quote-content">
+    <!-- Avatar and Author Info Row -->
+    <div class="tweet-quote-header">
+      <!-- Quote Avatar -->
+      <div class="tweet-quote-avatar-container">
+        {#if parsedTweet.quote.avatar}
+        <img
+          src={getMediaUrl(parsedTweet.quote.avatar)}
+          alt="{parsedTweet.quote.name} avatar"
+          class="tweet-quote-avatar tweet-avatar-image"
+          loading="lazy"
+        />
+        {:else}
+        <div class="tweet-quote-avatar tweet-avatar-initials {getAvatarColor(parsedTweet.quote.name)}">
+          {getInitials(parsedTweet.quote.name)}
         </div>
+        {/if}
+      </div>
+      
+      <!-- Quote Author Info -->
+      <div class="tweet-quote-author-info">
+        <span class="tweet-quote-name">
+          {parsedTweet.quote.name}
+        </span>
+        <span class="tweet-quote-handle">
+          {parsedTweet.quote.handle}
+        </span>
+        {#if parsedTweet.quote.time}
+        <span class="tweet-quote-time-separator">·</span>
+        <span class="tweet-quote-time">
+          {parsedTweet.quote.time}
+        </span>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Quote Body Content -->
+    <div class="tweet-quote-body-container">
+      <!-- Quote Body -->
+      <div class="tweet-quote-body">
+        {@html parseTwitterText(parsedTweet.quote.body)}
+      </div>
+      
+      <!-- Quote Media -->
+      {#if parsedTweet.quote.media && parsedTweet.quote.media.length > 0}
+      <div class="tweet-quote-media-container">
+        <div class="tweet-quote-media-grid tweet-media-grid-{parsedTweet.quote.media.length === 1 ? 'single' : 'multiple'}">
+          {#each parsedTweet.quote.media as mediaFile}
+          <div class="tweet-quote-media-item">
+            {#if mediaFile.endsWith('.mp4') || mediaFile.endsWith('.mov') || mediaFile.includes('video')}
+            <video
+              src={getMediaUrl(mediaFile)}
+              class="tweet-quote-media tweet-quote-video"
+              controls
+              preload="metadata"
+              on:click={(e) => e.stopPropagation()}
+            >
+              <track kind="captions">
+            </video>
+            {:else}
+            <button
+              type="button"
+              class="tweet-media-button"
+              on:click={(e) => handleMediaClick(e, getMediaUrl(mediaFile))}
+            >
+              <img
+                src={getMediaUrl(mediaFile)}
+                alt="Quote media"
+                class="tweet-quote-media tweet-quote-image"
+                loading="lazy"
+              />
+            </button>
+            {/if}
+          </div>
+          {/each}
+        </div>
+      </div>
       {/if}
+    </div>
+  </div>
+</div>
+{/if}
       
       <!-- Time -->
       {#if parsedTweet.time}
@@ -615,63 +618,84 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
   object-fit: contain;
   display: block;
 }
-  
   /* Quote Tweet Styles */
-  .tweet-quote-container {
-    border: 1px solid rgb(47, 51, 54);
-    border-radius: 16px;
-    padding: 12px;
-    margin: 12px 0;
-  }
-  
-  .tweet-quote-content {
-    display: flex;
-    gap: 8px;
-  }
-  
-  .tweet-quote-avatar {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .tweet-quote-author-info {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-bottom: 2px;
-  }
-  
-  .tweet-quote-name {
-    font-weight: 700;
-    font-size: 14px;
-    color: rgb(231, 233, 234);
-  }
-  
-  .tweet-quote-handle {
-    color: rgb(113, 118, 123);
-    font-size: 14px;
-  }
-  
-  .tweet-quote-time-separator {
-    color: rgb(113, 118, 123);
-  }
-  
-  .tweet-quote-time {
-    color: rgb(113, 118, 123);
-    font-size: 14px;
-  }
-  
-  .tweet-quote-body {
-    white-space: pre-wrap;
-    line-height: 20px;
+.tweet-quote-container {
+  border: 1px solid rgb(47, 51, 54);
+  border-radius: 16px;
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.tweet-quote-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+}
+
+.tweet-quote-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tweet-quote-avatar-container {
+  flex-shrink: 0;
+}
+
+.tweet-quote-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.tweet-quote-author-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.tweet-quote-body-container {
+  width: 100%;
+}
+
+.tweet-quote-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: rgb(231, 233, 234);
+}
+
+.tweet-quote-handle {
+  color: rgb(113, 118, 123);
+  font-size: 14px;
+}
+
+.tweet-quote-time-separator {
+  color: rgb(113, 118, 123);
+}
+
+.tweet-quote-time {
+  color: rgb(113, 118, 123);
+  font-size: 14px;
+}
+
+.tweet-quote-body {
     font-size: 15px;
+    line-height: 22px;
     color: rgb(231, 233, 234);
-    margin-bottom: 8px;
-  }
-  
-  .tweet-quote-media {
-    height: 120px;
-  }
+    white-space: pre-wrap;
+    margin: 8px 0;
+    margin-bottom: 0px; 
+}
+
+.tweet-quote-media-container {
+  margin-top: 8px;
+}
+
+.tweet-quote-media {
+  height: 120px;
+}
   
   /* Reply Styles */
   .tweet-replies {
