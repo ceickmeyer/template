@@ -24,12 +24,14 @@
   const TWEETS_PER_PAGE = 20;
   
   onMount(async () => {
-    // Load saved theme preference
+    // Load saved theme and sort preferences FIRST
     loadThemePreference();
     
     // Initialize featured tweet system and check for daily rotation
     await loadFeaturedTweet();
-    await loadTweets();
+    
+    // Load tweets with the saved sort order
+    await loadTweets(false, '', sortOrder);
     setupInfiniteScroll();
   });
 
@@ -37,9 +39,16 @@
     if (typeof window === 'undefined') return;
     
     const savedTheme = localStorage.getItem('feed-theme') as 'dark' | 'light';
+    const savedSortOrder = localStorage.getItem('feed-sort-order') as 'newest' | 'oldest' | 'shuffle';
+    
     if (savedTheme) {
       theme = savedTheme;
       applyTheme(theme);
+    }
+    
+    if (savedSortOrder) {
+      console.log('Loading saved sort order:', savedSortOrder); // Debug log
+      sortOrder = savedSortOrder;
     }
   }
 
@@ -284,6 +293,11 @@
     sortOrder = newSortOrder;
     
     console.log('Sort changed to:', sortOrder); // Debug log
+    
+    // Save the sort preference
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('feed-sort-order', sortOrder);
+    }
     
     // Reset pagination state
     lastTweetId = null;
