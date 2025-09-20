@@ -119,7 +119,7 @@
     }
   }
 
-  async function loadTweets(append = false, searchQuery = '') {
+  async function loadTweets(append = false, searchQuery = '', sortOverride = '') {
     if (append) {
       loadingMore = true;
     } else {
@@ -129,24 +129,39 @@
     try {
       let query = supabase
         .from('tweets')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
+
+      // Determine sort order - use override if provided, otherwise use current sortOrder
+      const currentSort = sortOverride || sortOrder;
+      
+      // Apply sorting at database level
+      if (currentSort === 'oldest') {
+        query = query.order('created_at', { ascending: true });
+      } else if (currentSort === 'shuffle') {
+        // For shuffle, we'll get all tweets and shuffle client-side
+        query = query.order('created_at', { ascending: false });
+      } else {
+        // newest (default)
+        query = query.order('created_at', { ascending: false });
+      }
 
       // If searching, search across content and don't apply normal restrictions
       if (searchQuery) {
-        console.log('Building search query for:', searchQuery); // Debug log
         query = query.or(`markdown_content.ilike.%${searchQuery}%,title.ilike.%${searchQuery}%`);
         // Don't limit results for search - we want all matches
         // Don't exclude featured tweet from search results
       } else {
         // Normal browsing: apply pagination limit and exclude featured tweet
-        query = query.limit(TWEETS_PER_PAGE);
+        if (currentSort !== 'shuffle') {
+          query = query.limit(TWEETS_PER_PAGE);
+        }
+        
         if (featuredTweet) {
           query = query.neq('id', featuredTweet.id);
         }
         
-        // For pagination, load tweets older than the last one
-        if (append && lastTweetId) {
+        // For pagination, load tweets relative to the last one
+        if (append && lastTweetId && currentSort !== 'shuffle') {
           const { data: lastTweet } = await supabase
             .from('tweets')
             .select('created_at')
@@ -154,42 +169,58 @@
             .single();
           
           if (lastTweet) {
-            query = query.lt('created_at', lastTweet.created_at);
+            if (currentSort === 'oldest') {
+              query = query.gt('created_at', lastTweet.created_at);
+            } else {
+              query = query.lt('created_at', lastTweet.created_at);
+            }
           }
         }
       }
 
       const { data, error: fetchError } = await query;
 
-      console.log('Search results:', data?.length, 'tweets found for query:', searchQuery); // Debug log
+      console.log('Loaded tweets with sort:', currentSort, 'Count:', data?.length); // Debug log
 
       if (fetchError) {
-        console.error('Search error:', fetchError); // Debug log
+        console.error('Search error:', fetchError);
         throw fetchError;
       }
 
-      if (append && !searchQuery) {
-        tweets = [...tweets, ...(data || [])];
-      } else {
-        tweets = data || [];
-      }
-
-      // Check if we have more tweets to load (only for non-search)
-      if (!searchQuery) {
-        hasMore = (data?.length || 0) === TWEETS_PER_PAGE;
-        
-        // Update lastTweetId for pagination
-        if (data && data.length > 0) {
-          lastTweetId = data[data.length - 1].id;
-        }
-      } else {
-        // For search, we loaded all results
+      let processedData = data || [];
+      
+      // Handle shuffle after getting all data
+      if (currentSort === 'shuffle' && !searchQuery) {
+        processedData = [...processedData].sort(() => Math.random() - 0.5);
+        // For shuffle, load all tweets at once, no pagination
         hasMore = false;
         lastTweetId = null;
       }
 
-      // Generate shuffled version when tweets are loaded (only for non-search)
-      if (!searchQuery) {
+      if (append && !searchQuery && currentSort !== 'shuffle') {
+        tweets = [...tweets, ...processedData];
+      } else {
+        tweets = processedData;
+      }
+
+      // Check if we have more tweets to load (only for non-search, non-shuffle)
+      if (!searchQuery && currentSort !== 'shuffle') {
+        hasMore = (processedData?.length || 0) === TWEETS_PER_PAGE;
+        
+        // Update lastTweetId for pagination
+        if (processedData && processedData.length > 0) {
+          lastTweetId = processedData[processedData.length - 1].id;
+        }
+      } else {
+        // For search or shuffle, we loaded all results
+        hasMore = false;
+        if (searchQuery || currentSort === 'shuffle') {
+          lastTweetId = null;
+        }
+      }
+
+      // Generate shuffled version when tweets are loaded (only for non-search, non-shuffle)
+      if (!searchQuery && currentSort !== 'shuffle') {
         generateShuffledTweets();
       }
 
@@ -249,10 +280,22 @@
   }
 
   function handleSort(event: CustomEvent<{ sortOrder: 'newest' | 'oldest' | 'shuffle' }>) {
-    sortOrder = event.detail.sortOrder;
+    const newSortOrder = event.detail.sortOrder;
+    sortOrder = newSortOrder;
     
-    if (sortOrder === 'shuffle') {
-      generateShuffledTweets();
+    console.log('Sort changed to:', sortOrder); // Debug log
+    
+    // Reset pagination state
+    lastTweetId = null;
+    hasMore = true;
+    
+    // Reload tweets with new sort order
+    if (searchTerm) {
+      // If currently searching, maintain search but apply new sort
+      loadTweets(false, searchTerm, sortOrder);
+    } else {
+      // Normal browsing with new sort
+      loadTweets(false, '', sortOrder);
     }
   }
 
@@ -261,32 +304,8 @@
     applyTheme(theme);
   }
 
-  // Computed filtered and sorted tweets
-  $: displayTweets = (() => {
-    let result = tweets;
-    
-    // When searching, tweets are already filtered by the database query
-    // So we just need to handle sorting for search results
-    if (searchTerm) {
-      // For search results, apply client-side sorting
-      if (sortOrder === 'oldest') {
-        result = [...result].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      } else if (sortOrder === 'shuffle') {
-        result = [...result].sort(() => Math.random() - 0.5);
-      }
-      // 'newest' is already the default order from the database
-    } else {
-      // When not searching, apply sorting to loaded tweets
-      if (sortOrder === 'oldest') {
-        result = [...result].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      } else if (sortOrder === 'shuffle') {
-        result = shuffledTweets;
-      }
-      // 'newest' is already the default order from the database
-    }
-    
-    return result;
-  })();
+  // Computed display tweets - now that sorting is done at DB level, just return tweets
+  $: displayTweets = tweets; // Database handles all sorting now
 
   // Show featured tweet only when not searching
   $: showFeaturedTweet = !searchTerm && featuredTweet;
