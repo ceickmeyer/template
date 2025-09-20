@@ -216,8 +216,7 @@ body {
 .featured-tweet .tweet-stats {
   color: var(--tweet-metrics-color) !important;
 }
-
-/* Quote tweet styling */
+/* Quote tweet styling - EXPANDED VERSION */
 .quote-tweet,
 .quoted-tweet {
   background-color: var(--bg-secondary) !important;
@@ -225,23 +224,43 @@ body {
 }
 
 .quote-tweet .tweet-name,
-.quoted-tweet .tweet-name {
+.quoted-tweet .tweet-name,
+.quote-tweet .tweet-author-name,
+.quoted-tweet .tweet-author-name {
   color: var(--tweet-name-color) !important;
 }
 
 .quote-tweet .tweet-handle,
-.quoted-tweet .tweet-handle {
+.quoted-tweet .tweet-handle,
+.quote-tweet .tweet-author-handle,
+.quoted-tweet .tweet-author-handle {
   color: var(--tweet-handle-color) !important;
 }
 
 .quote-tweet .tweet-body,
 .quoted-tweet .tweet-body,
 .quote-tweet .tweet-text,
-.quoted-tweet .tweet-text {
+.quoted-tweet .tweet-text,
+.quote-tweet .tweet-content,
+.quoted-tweet .tweet-content {
   color: var(--tweet-body-color) !important;
 }
 
-/* Reply thread styling */
+.quote-tweet .tweet-time,
+.quoted-tweet .tweet-time,
+.quote-tweet .tweet-timestamp,
+.quoted-tweet .tweet-timestamp {
+  color: var(--tweet-time-color) !important;
+}
+
+.quote-tweet .tweet-metrics,
+.quoted-tweet .tweet-metrics,
+.quote-tweet .tweet-stats,
+.quoted-tweet .tweet-stats {
+  color: var(--tweet-metrics-color) !important;
+}
+
+/* Reply thread styling - EXPANDED VERSION */
 .reply-tweet,
 .thread-tweet {
   background-color: var(--bg-primary) !important;
@@ -249,20 +268,132 @@ body {
 }
 
 .reply-tweet .tweet-name,
-.thread-tweet .tweet-name {
+.thread-tweet .tweet-name,
+.reply-tweet .tweet-author-name,
+.thread-tweet .tweet-author-name {
   color: var(--tweet-name-color) !important;
 }
 
 .reply-tweet .tweet-handle,
-.thread-tweet .tweet-handle {
+.thread-tweet .tweet-handle,
+.reply-tweet .tweet-author-handle,
+.thread-tweet .tweet-author-handle {
   color: var(--tweet-handle-color) !important;
 }
 
 .reply-tweet .tweet-body,
 .thread-tweet .tweet-body,
 .reply-tweet .tweet-text,
-.thread-tweet .tweet-text {
+.thread-tweet .tweet-text,
+.reply-tweet .tweet-content,
+.thread-tweet .tweet-content {
   color: var(--tweet-body-color) !important;
+}
+
+.reply-tweet .tweet-time,
+.thread-tweet .tweet-time,
+.reply-tweet .tweet-timestamp,
+.thread-tweet .tweet-timestamp {
+  color: var(--tweet-time-color) !important;
+}
+
+.reply-tweet .tweet-metrics,
+.thread-tweet .tweet-metrics,
+.reply-tweet .tweet-stats,
+.thread-tweet .tweet-stats {
+  color: var(--tweet-metrics-color) !important;
+}
+
+/* More aggressive selectors for nested tweet content */
+[class*="quote"] .tweet-name,
+[class*="quote"] .tweet-author-name,
+[class*="reply"] .tweet-name,
+[class*="reply"] .tweet-author-name {
+  color: var(--tweet-name-color) !important;
+}
+
+[class*="quote"] .tweet-handle,
+[class*="quote"] .tweet-author-handle,
+[class*="reply"] .tweet-handle,
+[class*="reply"] .tweet-author-handle {
+  color: var(--tweet-handle-color) !important;
+}
+
+[class*="quote"] .tweet-body,
+[class*="quote"] .tweet-content,
+[class*="quote"] .tweet-text,
+[class*="reply"] .tweet-body,
+[class*="reply"] .tweet-content,
+[class*="reply"] .tweet-text {
+  color: var(--tweet-body-color) !important;
+}
+
+[class*="quote"] .tweet-time,
+[class*="quote"] .tweet-timestamp,
+[class*="reply"] .tweet-time,
+[class*="reply"] .tweet-timestamp {
+  color: var(--tweet-time-color) !important;
+}
+
+[class*="quote"] .tweet-metrics,
+[class*="quote"] .tweet-stats,
+[class*="reply"] .tweet-metrics,
+[class*="reply"] .tweet-stats {
+  color: var(--tweet-metrics-color) !important;
+}
+
+/* Universal tweet element targeting - catch-all for any missed elements */
+[class*="tweet"] [class*="name"] {
+  color: var(--tweet-name-color) !important;
+}
+
+[class*="tweet"] [class*="handle"] {
+  color: var(--tweet-handle-color) !important;
+}
+
+[class*="tweet"] [class*="body"],
+[class*="tweet"] [class*="content"],
+[class*="tweet"] [class*="text"] {
+  color: var(--tweet-body-color) !important;
+}
+
+[class*="tweet"] [class*="time"],
+[class*="tweet"] [class*="timestamp"] {
+  color: var(--tweet-time-color) !important;
+}
+
+[class*="tweet"] [class*="metric"],
+[class*="tweet"] [class*="stat"] {
+  color: var(--tweet-metrics-color) !important;
+}
+
+/* Deep nested selectors for complex tweet structures */
+.tweet-container .quote-tweet .tweet-body,
+.tweet-container .quoted-tweet .tweet-body,
+.tweet-wrapper .quote-tweet .tweet-content,
+.tweet-wrapper .quoted-tweet .tweet-content {
+  color: var(--tweet-body-color) !important;
+}
+
+.tweet-container .reply-tweet .tweet-body,
+.tweet-container .thread-tweet .tweet-body,
+.tweet-wrapper .reply-tweet .tweet-content,
+.tweet-wrapper .thread-tweet .tweet-content {
+  color: var(--tweet-body-color) !important;
+}
+
+/* Target any remaining hardcoded text elements */
+.tweet-container p,
+.tweet-wrapper p,
+.tweet-content p,
+.tweet-body p {
+  color: var(--tweet-body-color) !important;
+}
+
+.tweet-container span,
+.tweet-wrapper span,
+.tweet-content span {
+  color: inherit !important;
 }
 
 /* General text elements that might be missed */
