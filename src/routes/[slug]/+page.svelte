@@ -111,35 +111,37 @@
     </article>
   </main>
 </div>
-
 <style>
   :global(body) {
     font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background-color: rgb(0, 0, 0);
-    color: rgb(231, 233, 234);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     font-size: 15px;
     line-height: 20px;
     margin: 0;
     padding: 0;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   .twitter-tweet-page {
     max-width: 600px;
     margin: 0 auto;
     min-height: 100vh;
-    background-color: rgb(0, 0, 0);
-    border-left: 1px solid rgb(47, 51, 54);
-    border-right: 1px solid rgb(47, 51, 54);
+    background-color: var(--bg-primary);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
     position: relative;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
   }
 
   .twitter-tweet-header {
-    position: top;
+    position: sticky;
     top: 0;
     z-index: 1000;
-    background-color: rgba(0, 0, 0, 0.85);
+    background-color: var(--nav-bg);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgb(47, 51, 54);
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
   }
 
   .twitter-tweet-header-inner {
@@ -155,10 +157,11 @@
     font-size: 20px;
     font-weight: 800;
     line-height: 24px;
-    color: rgb(231, 233, 234);
+    color: var(--text-primary);
     margin: 0;
     flex: 1;
     text-align: center;
+    transition: color 0.2s ease;
   }
 
   .twitter-nav-button {
@@ -170,14 +173,14 @@
     border: none;
     border-radius: 50%;
     background-color: transparent;
-    color: rgb(231, 233, 234);
+    color: var(--text-primary);
     cursor: pointer;
     transition: all 0.2s ease;
     padding: 0;
   }
 
   .twitter-nav-button:hover:not(:disabled) {
-    background-color: rgba(231, 233, 234, 0.1);
+    background-color: var(--hover-bg);
   }
 
   .twitter-nav-button:disabled {
@@ -204,11 +207,11 @@
       border-left: none;
       border-right: none;
     }
-    
+
     .twitter-tweet-header-inner {
       padding: 0 12px;
     }
-    
+
     .twitter-tweet-title {
       font-size: 18px;
     }

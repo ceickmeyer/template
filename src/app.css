@@ -1,6 +1,33 @@
 @import 'tailwindcss';
-/* Add this to your src/app.css file */
 
+/* CSS Custom Properties for theming */
+:root {
+  --bg-primary: rgb(0, 0, 0);
+  --bg-secondary: rgb(22, 24, 28);
+  --text-primary: rgb(231, 233, 234);
+  --text-secondary: rgb(113, 118, 123);
+  --border-color: rgb(47, 51, 54);
+  --hover-bg: rgba(231, 233, 234, 0.03);
+  
+  /* Navigation specific */
+  --nav-bg: rgba(0, 0, 0, 0.85);
+  --nav-bg-mobile: rgba(0, 0, 0, 0.95);
+  --search-bg: rgba(0, 0, 0, 0.5);
+  --search-bg-focus: rgba(0, 0, 0, 0.8);
+  
+  /* Featured tweet */
+  --featured-bg: rgb(0, 0, 0);
+  --featured-border: rgb(47, 51, 54);
+  
+  /* Tweet content */
+  --tweet-name-color: rgb(231, 233, 234);
+  --tweet-handle-color: rgb(113, 118, 123);
+  --tweet-body-color: rgb(231, 233, 234);
+  --tweet-time-color: rgb(113, 118, 123);
+  --tweet-metrics-color: rgb(113, 118, 123);
+}
+
+/* Twitter Chirp Font Definitions */
 @font-face {
   font-family: 'TwitterChirp';
   src: url('/fonts/Chirp-Light.woff2') format('woff2');
@@ -52,14 +79,19 @@
 /* Set Chirp as default font with fallbacks */
 body {
   font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Twitter-specific typography classes */
+/* Updated Twitter-specific typography classes with theming */
 .tweet-text {
   font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 15px;
   line-height: 20px;
   font-weight: 400;
+  color: var(--tweet-body-color);
+  transition: color 0.2s ease;
 }
 
 .tweet-name {
@@ -67,6 +99,8 @@ body {
   font-size: 15px;
   font-weight: 700;
   line-height: 20px;
+  color: var(--tweet-name-color);
+  transition: color 0.2s ease;
 }
 
 .tweet-handle {
@@ -74,7 +108,8 @@ body {
   font-size: 15px;
   font-weight: 400;
   line-height: 20px;
-  color: #536471; /* Twitter's secondary text color */
+  color: var(--tweet-handle-color);
+  transition: color 0.2s ease;
 }
 
 .tweet-time {
@@ -82,7 +117,8 @@ body {
   font-size: 15px;
   font-weight: 400;
   line-height: 20px;
-  color: #536471;
+  color: var(--tweet-time-color);
+  transition: color 0.2s ease;
 }
 
 .tweet-metrics {
@@ -90,5 +126,250 @@ body {
   font-size: 13px;
   font-weight: 400;
   line-height: 16px;
-  color: #536471;
+  color: var(--tweet-metrics-color);
+  transition: color 0.2s ease;
+}
+
+/* Global theme overrides for all tweet components */
+
+/* Tweet author names - multiple selectors to catch all variations */
+.tweet-name,
+.tweet-author-name,
+[class*="tweet"] .name,
+[class*="tweet"] .author-name {
+  color: var(--tweet-name-color) !important;
+}
+
+/* Tweet handles */
+.tweet-handle,
+.tweet-author-handle,
+[class*="tweet"] .handle,
+[class*="tweet"] .author-handle {
+  color: var(--tweet-handle-color) !important;
+}
+
+/* Tweet body text */
+.tweet-body,
+.tweet-content,
+.tweet-text,
+[class*="tweet"] .body,
+[class*="tweet"] .content {
+  color: var(--tweet-body-color) !important;
+}
+
+/* Tweet timestamps */
+.tweet-time,
+.tweet-timestamp,
+[class*="tweet"] .time,
+[class*="tweet"] .timestamp {
+  color: var(--tweet-time-color) !important;
+}
+
+/* Tweet metrics (likes, retweets, etc.) */
+.tweet-metrics,
+.tweet-stats,
+.tweet-engagement,
+[class*="tweet"] .metrics,
+[class*="tweet"] .stats {
+  color: var(--tweet-metrics-color) !important;
+}
+
+/* Tweet container backgrounds */
+.twitter-tweet,
+.tweet-container,
+.tweet-wrapper,
+[class*="tweet-container"],
+[class*="tweet-wrapper"] {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Featured tweet specific styling */
+.featured-tweet,
+.featured-tweet-container {
+  background-color: var(--featured-bg) !important;
+  border-color: var(--featured-border) !important;
+}
+
+.featured-tweet .tweet-name,
+.featured-tweet .tweet-author-name {
+  color: var(--tweet-name-color) !important;
+}
+
+.featured-tweet .tweet-handle,
+.featured-tweet .tweet-author-handle {
+  color: var(--tweet-handle-color) !important;
+}
+
+.featured-tweet .tweet-body,
+.featured-tweet .tweet-content,
+.featured-tweet .tweet-text {
+  color: var(--tweet-body-color) !important;
+}
+
+.featured-tweet .tweet-time,
+.featured-tweet .tweet-timestamp {
+  color: var(--tweet-time-color) !important;
+}
+
+.featured-tweet .tweet-metrics,
+.featured-tweet .tweet-stats {
+  color: var(--tweet-metrics-color) !important;
+}
+
+/* Quote tweet styling */
+.quote-tweet,
+.quoted-tweet {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.quote-tweet .tweet-name,
+.quoted-tweet .tweet-name {
+  color: var(--tweet-name-color) !important;
+}
+
+.quote-tweet .tweet-handle,
+.quoted-tweet .tweet-handle {
+  color: var(--tweet-handle-color) !important;
+}
+
+.quote-tweet .tweet-body,
+.quoted-tweet .tweet-body,
+.quote-tweet .tweet-text,
+.quoted-tweet .tweet-text {
+  color: var(--tweet-body-color) !important;
+}
+
+/* Reply thread styling */
+.reply-tweet,
+.thread-tweet {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.reply-tweet .tweet-name,
+.thread-tweet .tweet-name {
+  color: var(--tweet-name-color) !important;
+}
+
+.reply-tweet .tweet-handle,
+.thread-tweet .tweet-handle {
+  color: var(--tweet-handle-color) !important;
+}
+
+.reply-tweet .tweet-body,
+.thread-tweet .tweet-body,
+.reply-tweet .tweet-text,
+.thread-tweet .tweet-text {
+  color: var(--tweet-body-color) !important;
+}
+
+/* General text elements that might be missed */
+.twitter-text,
+.tweet-content p,
+.tweet-content span {
+  color: var(--tweet-body-color) !important;
+}
+
+/* Ensure all text in tweet components uses theme colors */
+[class*="tweet"] * {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Override any hardcoded Twitter blue text that should be themed */
+.twitter-handle,
+.tweet-mention,
+.tweet-hashtag {
+  color: rgb(29, 155, 240) !important; /* Keep Twitter blue for links */
+}
+
+/* Main container backgrounds */
+.twitter-feed,
+.tweet-page,
+.tweet-detail {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Navigation and header elements */
+.twitter-header,
+.feed-header,
+.tweet-header {
+  background-color: var(--nav-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.twitter-title,
+.feed-title {
+  color: var(--text-primary) !important;
+}
+
+/* Any remaining text that should be themed */
+.secondary-text,
+.muted-text,
+.subtitle {
+  color: var(--text-secondary) !important;
+}
+
+.primary-text,
+.main-text {
+  color: var(--text-primary) !important;
+}
+
+/* Hover states */
+.twitter-tweet:hover,
+.tweet-container:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Borders */
+.twitter-border,
+.tweet-border,
+[class*="border"] {
+  border-color: var(--border-color) !important;
+}
+
+/* For individual tweet pages (slug routes) */
+.tweet-detail-container,
+.single-tweet-view {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Navigation buttons and links in tweet pages */
+.tweet-nav,
+.tweet-navigation {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.tweet-nav a,
+.tweet-navigation a {
+  color: var(--text-primary) !important;
+}
+
+.tweet-nav a:hover,
+.tweet-navigation a:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Media elements */
+.tweet-media-container {
+  border-color: var(--border-color) !important;
+}
+
+/* Ensure proper contrast for accessibility */
+@media (prefers-contrast: high) {
+  :root {
+    --text-primary: rgb(255, 255, 255);
+    --text-secondary: rgb(200, 200, 200);
+  }
+}
+
+/* Print styles */
+@media print {
+  * {
+    background-color: white !important;
+    color: black !important;
+  }
 }
