@@ -1,0 +1,64 @@
+## FeedNavigation Component Implementation Instructions
+
+### Files to Create:
+
+1. **Create `src/lib/components/FeedNavigation.svelte`**
+   - Copy the complete component code from the first artifact
+   - This handles theme toggle, sort controls, and search functionality
+   - Uses localStorage for persistence
+   - Mobile-responsive with collapsible search
+
+### Integration Steps:
+
+1. **Import the component in `src/routes/+page.svelte`:**
+   ```svelte
+   import FeedNavigation from '$lib/components/FeedNavigation.svelte';
+   ```
+
+2. **Add state variables:**
+   ```typescript
+   let searchTerm = '';
+   let sortOrder: 'newest' | 'oldest' | 'shuffle' = 'newest';
+   let shuffledTweets = [];
+   ```
+
+3. **Add event handlers:**
+   ```typescript
+   function handleSearch(event) { searchTerm = event.detail.searchTerm; }
+   function handleSort(event) { /* handle sort logic */ }
+   function handleThemeToggle(event) { /* apply CSS custom properties */ }
+   ```
+
+4. **Place component between header and featured tweet:**
+   ```svelte
+   <!-- After header, before timeline -->
+   <FeedNavigation 
+     {tweets}
+     bind:searchTerm
+     on:search={handleSearch}
+     on:sort={handleSort}
+     on:themeToggle={handleThemeToggle}
+   />
+   ```
+
+5. **Add filtering logic:**
+   ```typescript
+   $: filteredTweets = searchTerm 
+     ? tweets.filter(tweet => tweet.markdown_content.toLowerCase().includes(searchTerm.toLowerCase()))
+     : (sortOrder === 'shuffle' ? shuffledTweets : tweets);
+   ```
+
+6. **Hide featured tweet during search:**
+   ```typescript
+   $: showFeaturedTweet = !searchTerm && featuredTweet;
+   ```
+
+### Key Features:
+- Theme toggle (prepares for light mode)
+- Sort: newest → oldest → shuffle → newest
+- Search filters all tweets by markdown content
+- Mobile: search collapses to icon
+- Persists preferences in localStorage
+- Shows search result count with clear option
+
+The component is fully functional and Twitter-styled. The theme system uses CSS custom properties for easy switching later.

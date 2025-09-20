@@ -4,6 +4,7 @@
   import { supabase } from '$lib/supabase.js';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
   import FeaturedTweet from '$lib/components/FeaturedTweet.svelte';
+  import FeedNavigation from '$lib/components/FeedNavigation.svelte';
   import { getCurrentFeaturedTweet, checkAndRotateDaily, initializeFeaturedTweet } from '$lib/utils/featuredTweet.js';
   
   let tweets = [];
@@ -14,14 +15,91 @@
   let error = '';
   let lastTweetId = null;
   
+  // FeedNavigation state
+  let searchTerm = '';
+  let sortOrder: 'newest' | 'oldest' | 'shuffle' = 'newest';
+  let shuffledTweets = [];
+  let theme: 'dark' | 'light' = 'dark';
+  
   const TWEETS_PER_PAGE = 20;
   
   onMount(async () => {
+    // Load saved theme preference
+    loadThemePreference();
+    
     // Initialize featured tweet system and check for daily rotation
     await loadFeaturedTweet();
     await loadTweets();
     setupInfiniteScroll();
   });
+
+  function loadThemePreference() {
+    if (typeof window === 'undefined') return;
+    
+    const savedTheme = localStorage.getItem('feed-theme') as 'dark' | 'light';
+    if (savedTheme) {
+      theme = savedTheme;
+      applyTheme(theme);
+    }
+  }
+
+  function applyTheme(newTheme: 'dark' | 'light') {
+    if (typeof document === 'undefined') return;
+    
+    const root = document.documentElement;
+    
+    if (newTheme === 'light') {
+      // Light theme
+      root.style.setProperty('--bg-primary', 'rgb(255, 255, 255)');
+      root.style.setProperty('--bg-secondary', 'rgb(247, 249, 249)');
+      root.style.setProperty('--text-primary', 'rgb(15, 20, 25)');
+      root.style.setProperty('--text-secondary', 'rgb(83, 100, 113)');
+      root.style.setProperty('--border-color', 'rgb(207, 217, 222)');
+      root.style.setProperty('--hover-bg', 'rgba(15, 20, 25, 0.03)');
+      
+      // Navigation specific
+      root.style.setProperty('--nav-bg', 'rgba(255, 255, 255, 0.85)');
+      root.style.setProperty('--nav-bg-mobile', 'rgba(255, 255, 255, 0.95)');
+      root.style.setProperty('--search-bg', 'rgba(247, 249, 249, 0.5)');
+      root.style.setProperty('--search-bg-focus', 'rgba(247, 249, 249, 0.8)');
+      
+      // Featured tweet
+      root.style.setProperty('--featured-bg', 'rgb(255, 255, 255)');
+      root.style.setProperty('--featured-border', 'rgb(207, 217, 222)');
+      
+      // Tweet content
+      root.style.setProperty('--tweet-name-color', 'rgb(15, 20, 25)');
+      root.style.setProperty('--tweet-handle-color', 'rgb(83, 100, 113)');
+      root.style.setProperty('--tweet-body-color', 'rgb(15, 20, 25)');
+      root.style.setProperty('--tweet-time-color', 'rgb(83, 100, 113)');
+      root.style.setProperty('--tweet-metrics-color', 'rgb(83, 100, 113)');
+    } else {
+      // Dark theme (default)
+      root.style.setProperty('--bg-primary', 'rgb(0, 0, 0)');
+      root.style.setProperty('--bg-secondary', 'rgb(22, 24, 28)');
+      root.style.setProperty('--text-primary', 'rgb(231, 233, 234)');
+      root.style.setProperty('--text-secondary', 'rgb(113, 118, 123)');
+      root.style.setProperty('--border-color', 'rgb(47, 51, 54)');
+      root.style.setProperty('--hover-bg', 'rgba(231, 233, 234, 0.03)');
+      
+      // Navigation specific
+      root.style.setProperty('--nav-bg', 'rgba(0, 0, 0, 0.85)');
+      root.style.setProperty('--nav-bg-mobile', 'rgba(0, 0, 0, 0.95)');
+      root.style.setProperty('--search-bg', 'rgba(0, 0, 0, 0.5)');
+      root.style.setProperty('--search-bg-focus', 'rgba(0, 0, 0, 0.8)');
+      
+      // Featured tweet
+      root.style.setProperty('--featured-bg', 'rgb(0, 0, 0)');
+      root.style.setProperty('--featured-border', 'rgb(47, 51, 54)');
+      
+      // Tweet content
+      root.style.setProperty('--tweet-name-color', 'rgb(231, 233, 234)');
+      root.style.setProperty('--tweet-handle-color', 'rgb(113, 118, 123)');
+      root.style.setProperty('--tweet-body-color', 'rgb(231, 233, 234)');
+      root.style.setProperty('--tweet-time-color', 'rgb(113, 118, 123)');
+      root.style.setProperty('--tweet-metrics-color', 'rgb(113, 118, 123)');
+    }
+  }
 
   async function loadFeaturedTweet() {
     try {
@@ -41,7 +119,7 @@
     }
   }
 
-  async function loadTweets(append = false) {
+  async function loadTweets(append = false, searchQuery = '') {
     if (append) {
       loadingMore = true;
     } else {
@@ -52,45 +130,67 @@
       let query = supabase
         .from('tweets')
         .select('*')
-        .order('created_at', { ascending: false })
-        .limit(TWEETS_PER_PAGE);
+        .order('created_at', { ascending: false });
 
-      // Exclude the featured tweet from regular feed
-      if (featuredTweet) {
-        query = query.neq('id', featuredTweet.id);
-      }
-
-      // For pagination, load tweets older than the last one
-      if (append && lastTweetId) {
-        const { data: lastTweet } = await supabase
-          .from('tweets')
-          .select('created_at')
-          .eq('id', lastTweetId)
-          .single();
+      // If searching, search across content and don't apply normal restrictions
+      if (searchQuery) {
+        console.log('Building search query for:', searchQuery); // Debug log
+        query = query.or(`markdown_content.ilike.%${searchQuery}%,title.ilike.%${searchQuery}%`);
+        // Don't limit results for search - we want all matches
+        // Don't exclude featured tweet from search results
+      } else {
+        // Normal browsing: apply pagination limit and exclude featured tweet
+        query = query.limit(TWEETS_PER_PAGE);
+        if (featuredTweet) {
+          query = query.neq('id', featuredTweet.id);
+        }
         
-        if (lastTweet) {
-          query = query.lt('created_at', lastTweet.created_at);
+        // For pagination, load tweets older than the last one
+        if (append && lastTweetId) {
+          const { data: lastTweet } = await supabase
+            .from('tweets')
+            .select('created_at')
+            .eq('id', lastTweetId)
+            .single();
+          
+          if (lastTweet) {
+            query = query.lt('created_at', lastTweet.created_at);
+          }
         }
       }
 
       const { data, error: fetchError } = await query;
 
+      console.log('Search results:', data?.length, 'tweets found for query:', searchQuery); // Debug log
+
       if (fetchError) {
+        console.error('Search error:', fetchError); // Debug log
         throw fetchError;
       }
 
-      if (append) {
+      if (append && !searchQuery) {
         tweets = [...tweets, ...(data || [])];
       } else {
         tweets = data || [];
       }
 
-      // Check if we have more tweets to load
-      hasMore = (data?.length || 0) === TWEETS_PER_PAGE;
-      
-      // Update lastTweetId for pagination
-      if (data && data.length > 0) {
-        lastTweetId = data[data.length - 1].id;
+      // Check if we have more tweets to load (only for non-search)
+      if (!searchQuery) {
+        hasMore = (data?.length || 0) === TWEETS_PER_PAGE;
+        
+        // Update lastTweetId for pagination
+        if (data && data.length > 0) {
+          lastTweetId = data[data.length - 1].id;
+        }
+      } else {
+        // For search, we loaded all results
+        hasMore = false;
+        lastTweetId = null;
+      }
+
+      // Generate shuffled version when tweets are loaded (only for non-search)
+      if (!searchQuery) {
+        generateShuffledTweets();
       }
 
     } catch (err) {
@@ -102,14 +202,20 @@
     }
   }
 
+  function generateShuffledTweets() {
+    // Create a shuffled copy of tweets
+    shuffledTweets = [...tweets].sort(() => Math.random() - 0.5);
+  }
+
   function setupInfiniteScroll() {
     function handleScroll() {
-      if (loadingMore || !hasMore) return;
+      // Only enable infinite scroll when not searching and using newest sort
+      if (loadingMore || !hasMore || searchTerm || sortOrder !== 'newest') return;
       
       const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
       
       if (scrollPercentage >= 0.9) {
-        loadTweets(true);
+        loadTweets(true, ''); // Empty string for no search
       }
     }
 
@@ -120,6 +226,73 @@
       window.removeEventListener('scroll', handleScroll);
     };
   }
+
+  // FeedNavigation event handlers
+  function handleSearch(event: CustomEvent<{ searchTerm: string }>) {
+    const newSearchTerm = event.detail.searchTerm;
+    const wasSearching = searchTerm.length > 0;
+    const isNowSearching = newSearchTerm.length > 0;
+    
+    searchTerm = newSearchTerm;
+    
+    // Always reload when search term changes
+    if (isNowSearching) {
+      console.log('Searching for:', searchTerm); // Debug log
+      loadTweets(false, searchTerm);
+    } else if (wasSearching && !isNowSearching) {
+      // Cleared search - reload normal feed
+      console.log('Clearing search, loading normal feed'); // Debug log
+      lastTweetId = null;
+      hasMore = true;
+      loadTweets(false, '');
+    }
+  }
+
+  function handleSort(event: CustomEvent<{ sortOrder: 'newest' | 'oldest' | 'shuffle' }>) {
+    sortOrder = event.detail.sortOrder;
+    
+    if (sortOrder === 'shuffle') {
+      generateShuffledTweets();
+    }
+  }
+
+  function handleThemeToggle(event: CustomEvent<{ theme: 'dark' | 'light' }>) {
+    theme = event.detail.theme;
+    applyTheme(theme);
+  }
+
+  // Computed filtered and sorted tweets
+  $: displayTweets = (() => {
+    let result = tweets;
+    
+    // When searching, tweets are already filtered by the database query
+    // So we just need to handle sorting for search results
+    if (searchTerm) {
+      // For search results, apply client-side sorting
+      if (sortOrder === 'oldest') {
+        result = [...result].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      } else if (sortOrder === 'shuffle') {
+        result = [...result].sort(() => Math.random() - 0.5);
+      }
+      // 'newest' is already the default order from the database
+    } else {
+      // When not searching, apply sorting to loaded tweets
+      if (sortOrder === 'oldest') {
+        result = [...result].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      } else if (sortOrder === 'shuffle') {
+        result = shuffledTweets;
+      }
+      // 'newest' is already the default order from the database
+    }
+    
+    return result;
+  })();
+
+  // Show featured tweet only when not searching
+  $: showFeaturedTweet = !searchTerm && featuredTweet;
+
+  // For FeedNavigation component - when searching, show actual count from database
+  $: allTweetsForNav = searchTerm ? tweets : (featuredTweet ? [featuredTweet, ...tweets] : tweets);
 </script>
 
 <svelte:head>
@@ -128,7 +301,7 @@
 </svelte:head>
 
 <!-- Twitter-style layout -->
-<div class="twitter-feed">
+<div class="twitter-feed" class:light-theme={theme === 'light'}>
   <!-- Header - Twitter style -->
   <div class="twitter-header">
     <div class="twitter-header-inner">
@@ -141,6 +314,15 @@
       </a>
     </div>
   </div>
+
+  <!-- Feed Navigation -->
+  <FeedNavigation 
+    tweets={allTweetsForNav}
+    bind:searchTerm
+    on:search={handleSearch}
+    on:sort={handleSort}
+    on:themeToggle={handleThemeToggle}
+  />
 
   <!-- Feed Timeline -->
   <div class="twitter-timeline">
@@ -162,39 +344,54 @@
           </button>
         </div>
       </div>
-    {:else if tweets.length === 0 && !featuredTweet}
+    {:else if displayTweets.length === 0 && !showFeaturedTweet}
       <div class="twitter-empty">
         <div class="twitter-empty-content">
-          <h2 class="twitter-empty-title">Welcome to your timeline!</h2>
-          <p class="twitter-empty-text">When people you follow post, you'll see it here.</p>
-          <div class="twitter-empty-actions">
-            <a href="/admin/create" class="twitter-empty-btn">Create Tweet</a>
-          </div>
+          {#if searchTerm}
+            <h2 class="twitter-empty-title">No tweets found</h2>
+            <p class="twitter-empty-text">Try searching for something else.</p>
+          {:else}
+            <h2 class="twitter-empty-title">Welcome to your timeline!</h2>
+            <p class="twitter-empty-text">When people you follow post, you'll see it here.</p>
+            <div class="twitter-empty-actions">
+              <a href="/admin/create" class="twitter-empty-btn">Create Tweet</a>
+            </div>
+          {/if}
         </div>
       </div>
     {:else}
-      <!-- Featured Tweet (appears only once at top) -->
-      {#if featuredTweet}
+      <!-- Featured Tweet (appears only when not searching) -->
+      {#if showFeaturedTweet}
         <FeaturedTweet tweet={featuredTweet} />
       {/if}
 
       <!-- Regular Tweet Articles -->
-      {#each tweets as tweet (tweet.id)}
+      {#each displayTweets as tweet (tweet.id)}
         <article class="twitter-tweet-article">
           <UserTweetDisplay {tweet} clickable={true} />
         </article>
       {/each}
 
-      <!-- Load More States -->
-      {#if loadingMore}
-        <div class="twitter-loading-more">
-          <div class="twitter-spinner"></div>
-        </div>
-      {:else if !hasMore && (tweets.length > 0 || featuredTweet)}
+      <!-- Load More States (only show for newest chronological, non-search) -->
+      {#if !searchTerm && sortOrder === 'newest'}
+        {#if loadingMore}
+          <div class="twitter-loading-more">
+            <div class="twitter-spinner"></div>
+          </div>
+        {:else if !hasMore && (tweets.length > 0 || showFeaturedTweet)}
+          <div class="twitter-end">
+            <div class="twitter-end-content">
+              <p class="twitter-end-text">You're all caught up</p>
+              <p class="twitter-end-subtext">You've seen all new posts</p>
+            </div>
+          </div>
+        {/if}
+      {:else if searchTerm && displayTweets.length > 0}
+        <!-- Search results end indicator -->
         <div class="twitter-end">
           <div class="twitter-end-content">
-            <p class="twitter-end-text">You're all caught up</p>
-            <p class="twitter-end-subtext">You've seen all new posts</p>
+            <p class="twitter-end-text">End of search results</p>
+            <p class="twitter-end-subtext">Found {displayTweets.length} matching tweets</p>
           </div>
         </div>
       {/if}
@@ -203,15 +400,43 @@
 </div>
 
 <style>
+  /* CSS Custom Properties for theming */
+  :global(:root) {
+    --bg-primary: rgb(0, 0, 0);
+    --bg-secondary: rgb(22, 24, 28);
+    --text-primary: rgb(231, 233, 234);
+    --text-secondary: rgb(113, 118, 123);
+    --border-color: rgb(47, 51, 54);
+    --hover-bg: rgba(231, 233, 234, 0.03);
+    
+    /* Navigation specific */
+    --nav-bg: rgba(0, 0, 0, 0.85);
+    --nav-bg-mobile: rgba(0, 0, 0, 0.95);
+    --search-bg: rgba(0, 0, 0, 0.5);
+    --search-bg-focus: rgba(0, 0, 0, 0.8);
+    
+    /* Featured tweet */
+    --featured-bg: rgb(0, 0, 0);
+    --featured-border: rgb(47, 51, 54);
+    
+    /* Tweet content */
+    --tweet-name-color: rgb(231, 233, 234);
+    --tweet-handle-color: rgb(113, 118, 123);
+    --tweet-body-color: rgb(231, 233, 234);
+    --tweet-time-color: rgb(113, 118, 123);
+    --tweet-metrics-color: rgb(113, 118, 123);
+  }
+
   /* Base Twitter styling */
   :global(body) {
     font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background-color: rgb(0, 0, 0);
-    color: rgb(231, 233, 234);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     font-size: 15px;
     line-height: 20px;
     margin: 0;
     padding: 0;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   /* Main feed container */
@@ -219,20 +444,21 @@
     max-width: 600px;
     min-height: 100vh;
     margin: 0 auto;
-    background-color: rgb(0, 0, 0);
-    border-left: 1px solid rgb(47, 51, 54);
-    border-right: 1px solid rgb(47, 51, 54);
+    background-color: var(--bg-primary);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
     position: relative;
+    transition: background-color 0.2s ease;
   }
 
   /* Header */
   .twitter-header {
-    position: top;
+    position: sticky;
     top: 0;
     z-index: 1000;
-    background-color: rgba(0, 0, 0, 0.85);
+    background-color: var(--nav-bg);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgb(47, 51, 54);
+    border-bottom: 1px solid var(--border-color);
   }
 
   .twitter-header-inner {
@@ -247,7 +473,7 @@
     font-size: 20px;
     font-weight: 800;
     line-height: 24px;
-    color: rgb(231, 233, 234);
+    color: var(--text-primary);
     margin: 0;
   }
 
@@ -274,18 +500,18 @@
   .twitter-tweet-article {
     display: flex;
     flex-direction: column;
-    border-bottom: 1px solid rgb(47, 51, 54);
+    border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     transition: background-color 0.2s ease-in-out;
     position: relative;
     min-height: 0;
     padding: 0;
     margin: 0;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: transparent;
   }
 
   .twitter-tweet-article:hover {
-    background-color: rgba(231, 233, 234, 0.03);
+    background-color: var(--hover-bg);
   }
 
   /* Loading states */
@@ -301,7 +527,7 @@
   .twitter-spinner {
     width: 32px;
     height: 32px;
-    border: 2px solid rgb(47, 51, 54);
+    border: 2px solid var(--border-color);
     border-top: 2px solid rgb(29, 155, 240);
     border-radius: 50%;
     animation: twitter-spin 1s linear infinite;
@@ -327,14 +553,14 @@
     font-size: 31px;
     font-weight: 800;
     line-height: 36px;
-    color: rgb(231, 233, 234);
+    color: var(--text-primary);
     margin: 0 0 8px 0;
   }
 
   .twitter-error-text {
     font-size: 15px;
     line-height: 20px;
-    color: rgb(113, 118, 123);
+    color: var(--text-secondary);
     margin: 0 0 28px 0;
   }
 
@@ -371,14 +597,14 @@
     font-size: 31px;
     font-weight: 800;
     line-height: 36px;
-    color: rgb(231, 233, 234);
+    color: var(--text-primary);
     margin: 0 0 8px 0;
   }
 
   .twitter-empty-text {
     font-size: 15px;
     line-height: 20px;
-    color: rgb(113, 118, 123);
+    color: var(--text-secondary);
     margin: 0 0 20px 0;
   }
 
@@ -420,16 +646,18 @@
     font-size: 20px;
     font-weight: 700;
     line-height: 24px;
-    color: rgb(231, 233, 234);
+    color: var(--text-primary);
     margin: 0 0 4px 0;
   }
 
   .twitter-end-subtext {
     font-size: 15px;
     line-height: 20px;
-    color: rgb(113, 118, 123);
+    color: var(--text-secondary);
     margin: 0;
   }
+
+  /* Light theme overrides for header - removed since we're using CSS variables now */
 
   /* Responsive design */
   @media (max-width: 688px) {
@@ -462,7 +690,7 @@
   }
 
   :global(::-webkit-scrollbar-track) {
-    background: rgb(22, 24, 28);
+    background: var(--bg-secondary);
   }
 
   :global(::-webkit-scrollbar-thumb) {
