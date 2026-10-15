@@ -1,9 +1,21 @@
 <!-- src/routes/parse/+page.svelte -->
 <script lang="ts">
   import { supabase } from '$lib/supabase.js';
-  import { parseTwitterClipboard, downloadImage, convertToMarkdown } from '$lib/utils/twitterClipboardParser.js';
+  import {
+    parseTwitterClipboard,
+    parseArchiverPayload,
+    looksLikeArchiverPayload,
+    downloadImage,
+    convertToMarkdown
+  } from '$lib/utils/twitterClipboardParser.js';
   import { generateSlug } from '$lib/utils/markdownParser.js';
-  
+  import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
+
+  // Rendered the same way it'll actually look on the site, so you can
+  // compare against the real tweet before saving instead of only reading
+  // the raw markdown.
+  $: previewTweet = previewMarkdown ? { markdown_content: previewMarkdown, slug: '', title } : null;
+
   let clipboardContent = '';
   let parsedData = null;
   let previewMarkdown = '';
@@ -14,103 +26,141 @@
   let successMessage = '';
   let uploadedFiles: string[] = [];
   let processingStatus = '';
-  
+  let usedArchiverScript = false;
+  let downloadWarnings: string[] = [];
+
   // Handle paste event
   async function handlePaste(event: ClipboardEvent) {
     const items = event.clipboardData?.items;
     if (!items) return;
-    
+
     let htmlContent = '';
-    
-    // Look for HTML content in clipboard
+    let plainContent = '';
+
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      
       if (item.type === 'text/html') {
-        htmlContent = await new Promise((resolve) => {
-          item.getAsString(resolve);
-        });
-        break;
+        htmlContent = await new Promise((resolve) => item.getAsString(resolve));
+      } else if (item.type === 'text/plain') {
+        plainContent = await new Promise((resolve) => item.getAsString(resolve));
       }
     }
-    
-    if (htmlContent) {
+
+    // The museum-of-twitter-archiver Tampermonkey script writes clean JSON
+    // to the clipboard as plain text — prefer that over the raw HTML path
+    // whenever it's present, since it already has resolved media/video URLs
+    // and real engagement counts that plain copy/paste can't provide.
+    if (plainContent && looksLikeArchiverPayload(plainContent)) {
+      clipboardContent = plainContent;
+      await processClipboard();
+    } else if (htmlContent) {
       clipboardContent = htmlContent;
       await processClipboard();
     } else {
-      errorMessage = 'No HTML content found in clipboard. Make sure you copied a tweet from Twitter/X.';
+      errorMessage = 'No tweet content found in clipboard. Make sure you copied a tweet from Twitter/X.';
     }
   }
-  
+
   // Process the clipboard content
   async function processClipboard() {
     if (!clipboardContent.trim()) {
       errorMessage = 'Please paste some content first';
       return;
     }
-    
+
     isProcessing = true;
     errorMessage = '';
     uploadedFiles = [];
+    downloadWarnings = [];
     processingStatus = 'Parsing tweet content...';
-    
+
+    // Downloads a file and uploads it to storage, appending a real failure
+    // reason to downloadWarnings instead of silently reporting success —
+    // the previous version treated "download failed" and "nothing to
+    // download" identically, so the UI claimed media was captured even
+    // when it wasn't.
+    async function downloadAndUpload(url: string, fileNamePrefix: string, label: string) {
+      try {
+        const file = await downloadImage(url);
+        const fileName = `${fileNamePrefix}-${file.name}`;
+
+        const { error } = await supabase.storage.from('tweet-media').upload(fileName, file);
+        if (error) throw new Error(error.message);
+
+        uploadedFiles = [...uploadedFiles, fileName];
+        return true;
+      } catch (err) {
+        console.error(`Failed to capture ${label}:`, err);
+        const reason = err instanceof Error ? err.message : 'download failed';
+        downloadWarnings = [...downloadWarnings, `${label}: ${reason}`];
+        return false;
+      }
+    }
+
     try {
-      // Parse the clipboard content
-      parsedData = parseTwitterClipboard(clipboardContent);
-      
+      usedArchiverScript = looksLikeArchiverPayload(clipboardContent);
+      parsedData = usedArchiverScript
+        ? parseArchiverPayload(clipboardContent)
+        : parseTwitterClipboard(clipboardContent);
+
       if (!parsedData) {
         throw new Error('Failed to parse tweet content');
       }
-      
+
       // Generate title if not provided
       if (!title) {
         title = `${parsedData.name} - ${parsedData.body.substring(0, 50)}...`;
       }
-      
+
       // Download and upload avatar if available
       if (parsedData.avatarUrl) {
         processingStatus = 'Downloading avatar...';
-        const avatarFile = await downloadImage(parsedData.avatarUrl);
-        
-        if (avatarFile) {
-          const fileName = `avatar-${Date.now()}-${avatarFile.name}`;
-          
-          const { error } = await supabase.storage
-            .from('tweet-media')
-            .upload(fileName, avatarFile);
-          
-          if (!error) {
-            uploadedFiles = [...uploadedFiles, fileName];
-          }
-        }
+        await downloadAndUpload(parsedData.avatarUrl, `avatar-${Date.now()}`, 'Avatar');
       }
-      
-      // Download and upload media files
+
+      // Download and upload image media files
       if (parsedData.mediaUrls.length > 0) {
         processingStatus = `Downloading ${parsedData.mediaUrls.length} media file(s)...`;
-        
+
         for (let i = 0; i < parsedData.mediaUrls.length; i++) {
-          const mediaUrl = parsedData.mediaUrls[i];
-          const mediaFile = await downloadImage(mediaUrl);
-          
-          if (mediaFile) {
-            const fileName = `media-${Date.now()}-${i}-${mediaFile.name}`;
-            
-            const { error } = await supabase.storage
-              .from('tweet-media')
-              .upload(fileName, mediaFile);
-            
-            if (!error) {
-              uploadedFiles = [...uploadedFiles, fileName];
-            }
+          await downloadAndUpload(parsedData.mediaUrls[i], `media-${Date.now()}-${i}`, `Media file ${i + 1}`);
+        }
+      }
+
+      // Download and upload video, when the archiver script captured a real
+      // video.twimg.com URL (never possible from plain copy/paste, since X
+      // only exposes a blob: URL in the DOM for video).
+      if (parsedData.videoUrl) {
+        processingStatus = 'Downloading video...';
+        await downloadAndUpload(parsedData.videoUrl, `media-${Date.now()}-video`, 'Video');
+      }
+
+      // Download and upload the quoted tweet's media too, when the
+      // archiver script captured one (and it isn't a deleted/unavailable
+      // quote, which has no media to fetch). Prefixed with "quote-" so
+      // convertToMarkdown can tell these apart from the main tweet's own
+      // avatar/media files.
+      if (parsedData.quote && !parsedData.quote.unavailable) {
+        if (parsedData.quote.avatarUrl) {
+          processingStatus = 'Downloading quoted tweet avatar...';
+          await downloadAndUpload(parsedData.quote.avatarUrl, `quote-avatar-${Date.now()}`, 'Quoted tweet avatar');
+        }
+        if (parsedData.quote.mediaUrls.length > 0) {
+          processingStatus = `Downloading ${parsedData.quote.mediaUrls.length} quoted tweet media file(s)...`;
+          for (let i = 0; i < parsedData.quote.mediaUrls.length; i++) {
+            await downloadAndUpload(
+              parsedData.quote.mediaUrls[i],
+              `quote-media-${Date.now()}-${i}`,
+              `Quoted tweet media file ${i + 1}`
+            );
           }
         }
       }
-      
+
       // Generate markdown
       previewMarkdown = convertToMarkdown(parsedData, uploadedFiles);
-      processingStatus = 'Ready to save!';
-      
+      processingStatus = downloadWarnings.length > 0 ? 'Done, with some media failures — see below' : 'Ready to save!';
+
     } catch (error) {
       console.error('Processing error:', error);
       errorMessage = 'Failed to process clipboard content: ' + error.message;
@@ -174,6 +224,7 @@
     previewMarkdown = '';
     title = '';
     uploadedFiles = [];
+    downloadWarnings = [];
     processingStatus = '';
     errorMessage = '';
     successMessage = '';
@@ -266,21 +317,70 @@
       <!-- Parsed Data Display -->
       {#if parsedData}
         <div class="bg-blue-50 p-4 rounded-lg">
-          <h3 class="text-sm font-medium text-blue-900 mb-2">Parsed Data</h3>
+          <h3 class="text-sm font-medium text-blue-900 mb-2">
+            Parsed Data
+            {#if usedArchiverScript}
+              <span class="ml-1 text-green-700">(via Tampermonkey script — real counts & video included)</span>
+            {/if}
+          </h3>
           <div class="text-xs space-y-1">
             <p><strong>Name:</strong> {parsedData.name}</p>
             <p><strong>Handle:</strong> {parsedData.handle}</p>
             <p><strong>Time:</strong> {parsedData.time}</p>
+            {#if parsedData.replyingTo}
+              <p><strong>Replying to:</strong> {parsedData.replyingTo}</p>
+            {/if}
+            {#if parsedData.quote}
+              {#if parsedData.quote.unavailable}
+                <p class="text-amber-700"><strong>Quote tweet:</strong> detected, but it's unavailable (deleted/suspended) — preserved as a placeholder</p>
+              {:else}
+                <p><strong>Quote tweet:</strong> {parsedData.quote.name} ({parsedData.quote.handle})</p>
+              {/if}
+            {/if}
             {#if parsedData.avatarUrl}
-              <p><strong>Avatar:</strong> Found and downloaded</p>
+              {#if uploadedFiles.some(f => f.startsWith('avatar-'))}
+                <p class="text-green-700"><strong>Avatar:</strong> downloaded and uploaded</p>
+              {:else}
+                <p class="text-red-700"><strong>Avatar:</strong> found but failed to download — see warning below</p>
+              {/if}
             {/if}
             {#if parsedData.mediaUrls.length > 0}
-              <p><strong>Media:</strong> {parsedData.mediaUrls.length} file(s) downloaded</p>
+              {@const mediaUploadedCount = uploadedFiles.filter(f => f.startsWith('media-') && !f.includes('-video-')).length}
+              {#if mediaUploadedCount === parsedData.mediaUrls.length}
+                <p class="text-green-700"><strong>Media:</strong> {mediaUploadedCount} of {parsedData.mediaUrls.length} image file(s) downloaded and uploaded</p>
+              {:else}
+                <p class="text-red-700"><strong>Media:</strong> only {mediaUploadedCount} of {parsedData.mediaUrls.length} image file(s) actually made it — see warnings below</p>
+              {/if}
+            {/if}
+            {#if parsedData.videoUrl}
+              {#if uploadedFiles.some(f => f.includes('-video-'))}
+                <p class="text-green-700"><strong>Video:</strong> downloaded and uploaded</p>
+              {:else}
+                <p class="text-red-700"><strong>Video:</strong> found but failed to download — see warning below</p>
+              {/if}
+            {/if}
+            {#if parsedData.unsupportedMediaCount > 0}
+              <p class="text-amber-700">
+                <strong>Video detected:</strong> {parsedData.unsupportedMediaCount} video file(s) couldn't be
+                captured automatically from plain copy/paste. Install the Tampermonkey script (see below) to
+                capture video, or download it yourself and attach it from the edit page after saving.
+              </p>
             {/if}
             {#if uploadedFiles.length > 0}
               <p><strong>Uploaded:</strong> {uploadedFiles.join(', ')}</p>
             {/if}
           </div>
+        </div>
+      {/if}
+
+      {#if downloadWarnings.length > 0}
+        <div class="bg-red-50 border border-red-200 p-4 rounded-lg">
+          <h3 class="text-sm font-medium text-red-900 mb-2">Media capture failures</h3>
+          <ul class="text-xs text-red-800 list-disc list-inside space-y-1">
+            {#each downloadWarnings as warning}
+              <li>{warning}</li>
+            {/each}
+          </ul>
         </div>
       {/if}
     </div>
@@ -300,7 +400,16 @@
           disabled={isProcessing || isSubmitting}
         ></textarea>
       </div>
-      
+
+      {#if previewTweet}
+        <div>
+          <span class="block text-sm font-medium text-gray-700 mb-2">Preview (as it will appear on the site)</span>
+          <div class="rounded-lg p-2" style="background: rgb(0, 0, 0);">
+            <UserTweetDisplay tweet={previewTweet} clickable={false} />
+          </div>
+        </div>
+      {/if}
+
       <div class="flex space-x-3">
         <button
           type="button"
@@ -356,12 +465,12 @@
     <ol class="text-xs text-gray-700 space-y-1 list-decimal list-inside">
       <li>Go to Twitter/X and find the tweet you want to archive</li>
       <li>Highlight the tweet, beginning at the avatar and ending at views.</li>
-      
+
       <li>The system will automatically:
         <ul class="list-disc list-inside ml-4 mt-1 space-y-1">
           <li>Extract the user name, handle, and tweet text</li>
           <li>Download and upload the profile picture as avatar</li>
-          <li>Download and upload any images or videos</li>
+          <li>Download and upload any images (videos can't be captured this way — see note below if one is detected)</li>
           <li>Preserve links and line breaks in the text</li>
           <li>Generate the markdown format used by your system</li>
         </ul>
@@ -369,6 +478,18 @@
       <li>Review the generated markdown and edit if needed</li>
       <li>Click "Save Tweet" to add it to your archive</li>
     </ol>
+  </div>
+
+  <!-- Tampermonkey script callout -->
+  <div class="mt-4 bg-indigo-50 border border-indigo-200 p-4 rounded-lg">
+    <h3 class="text-sm font-medium text-indigo-900 mb-1">Want video and real engagement counts?</h3>
+    <p class="text-xs text-indigo-800">
+      Plain copy/paste from the browser can't carry video (X streams it from a
+      <code>blob:</code> URL, not a plain link) or engagement numbers. Installing
+      <code>tools/tampermonkey/museum-of-twitter-archiver.user.js</code> in Tampermonkey adds an
+      "📋 Archive" button to every tweet on x.com that captures those too — paste here exactly the same way,
+      the richer data is picked up automatically.
+    </p>
   </div>
   
   <!-- Raw Clipboard Debug (only show if there's content) -->

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  
-  // Show navigation only on admin pages
-  $: showNavigation = $page.url.pathname.startsWith('/admin');
+  import { enhance } from '$app/forms';
+
+  $: showNavigation = $page.url.pathname.startsWith('/admin') && $page.url.pathname !== '/admin/login';
 </script>
 
 {#if showNavigation}
@@ -54,6 +54,18 @@
           </div>
         </div>
         
+        <!-- Logout -->
+        <div class="hidden md:flex items-center">
+          <form method="POST" action="/admin/logout" use:enhance>
+            <button
+              type="submit"
+              class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+
         <!-- Mobile menu button -->
         <div class="md:hidden flex items-center">
           <button
@@ -111,6 +123,15 @@
         >
           Public Feed
         </a>
+
+        <form method="POST" action="/admin/logout" use:enhance class="mt-1">
+          <button
+            type="submit"
+            class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+          >
+            Sign out
+          </button>
+        </form>
       </div>
     </div>
   </nav>

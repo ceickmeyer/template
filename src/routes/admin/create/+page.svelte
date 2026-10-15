@@ -1,13 +1,10 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
   import TweetCreator from '$lib/components/TweetCreator.svelte';
-	import TweetParser from '$lib/components/TweetParser.svelte';
-	  
 </script>
 
 <svelte:head>
-  <title>Museum of Twitter</title>
+  <title>Create Tweet - Museum of Twitter Admin</title>
 </svelte:head>
-
 
 <TweetCreator />

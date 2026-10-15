@@ -46,55 +46,6 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
-  /* Featured Tweet label at the top center */
-  .featured-tweet-label {
-    position: absolute;
-    top: -8px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 4px 12px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    backdrop-filter: blur(8px);
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .featured-badge-container {
-    padding: 0 16px 8px 16px;
-  }
-
-  .featured-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    background: linear-gradient(135deg, rgb(255, 212, 0), rgb(255, 193, 7));
-    color: rgb(0, 0, 0);
-    border-radius: 16px;
-    font-size: 13px;
-    font-weight: 600;
-    box-shadow: 0 2px 8px rgba(255, 212, 0, 0.3);
-  }
-
-  .featured-icon {
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-  }
-
-  .featured-text {
-    font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  }
-
   .featured-tweet-content {
     position: relative;
     border-radius: 5px;
@@ -185,12 +136,6 @@
   }
 
   /* Responsive adjustments */
-  @media (max-width: 688px) {
-    .featured-badge-container {
-      padding: 0 12px 6px 12px;
-    }
-  }
-
   /* Accessibility */
   @media (prefers-reduced-motion: reduce) {
     .featured-tweet-content {

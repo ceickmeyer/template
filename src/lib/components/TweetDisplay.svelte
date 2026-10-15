@@ -1,6 +1,7 @@
 <!-- src/lib/components/TweetDisplay.svelte -->
 <script lang="ts">
   import { TweetMarkdownParser, formatLikes } from '$lib/utils/markdownParser.js';
+  import { decodeHtmlEntities } from '$lib/utils/twitterTextParser.js';
   import { supabase } from '$lib/supabase.js';
   
   export let tweet;
@@ -37,21 +38,6 @@
     return (num / 1000000).toFixed(1).replace('.0', '') + 'M';
   }
 
-  // Component for rendering individual tweet content
-  function renderTweetContent(tweetData, isQuote = false, isReply = false) {
-    const containerClass = isQuote 
-      ? "border border-gray-300 rounded-lg p-3 mb-3 bg-gray-50"
-      : isReply 
-      ? "border-l-2 border-gray-200 pl-4"
-      : "";
-    
-    const avatarSize = isQuote ? "w-6 h-6" : isReply ? "w-8 h-8" : "w-12 h-12";
-    const nameTextSize = isQuote ? "text-xs" : isReply ? "text-sm" : "text-sm";
-    const bodyTextSize = isQuote ? "text-xs" : isReply ? "text-sm" : "text-sm";
-    const timeTextSize = isQuote ? "text-xs" : isReply ? "text-sm" : "text-sm";
-    
-    return { containerClass, avatarSize, nameTextSize, bodyTextSize, timeTextSize };
-  }
 </script>
 
 {#if parseResult && !parseResult.success}
@@ -94,9 +80,16 @@
           </span>
         </div>
         
+        <!-- Replying To -->
+        {#if parsedTweet.replyingTo}
+          <div class="text-blue-600 text-sm mb-1">
+            Replying to {parsedTweet.replyingTo}
+          </div>
+        {/if}
+
         <!-- Tweet Body -->
         <div class="text-gray-900 text-sm mb-3 whitespace-pre-wrap leading-relaxed">
-          {parsedTweet.body}
+          {decodeHtmlEntities(parsedTweet.body)}
         </div>
         
         <!-- Main Tweet Media -->
@@ -131,6 +124,9 @@
         <!-- Quote Tweet -->
         {#if parsedTweet.quote}
           <div class="border border-gray-300 rounded-lg p-3 mb-3 bg-gray-50">
+            {#if parsedTweet.quote.unavailable}
+              <p class="text-gray-500 text-xs italic">{parsedTweet.quote.unavailable}</p>
+            {:else}
             <div class="flex items-start space-x-2">
               <!-- Quote Avatar -->
               <div class="flex-shrink-0">
@@ -162,7 +158,7 @@
                 
                 <!-- Quote Body -->
                 <div class="text-gray-900 text-xs leading-relaxed mb-2 whitespace-pre-wrap">
-                  {parsedTweet.quote.body}
+                  {decodeHtmlEntities(parsedTweet.quote.body)}
                 </div>
                 
                 <!-- Quote Media -->
@@ -202,9 +198,10 @@
                 {/if}
               </div>
             </div>
+            {/if}
           </div>
         {/if}
-        
+
         <!-- Timestamp -->
         {#if parsedTweet.time}
           <div class="text-gray-500 text-sm mb-3">
@@ -278,7 +275,7 @@
                     
                     <!-- Reply Body -->
                     <div class="text-gray-900 text-sm mb-2 leading-relaxed whitespace-pre-wrap">
-                      {reply.body}
+                      {decodeHtmlEntities(reply.body)}
                     </div>
                     
                     <!-- Reply Media -->
@@ -312,10 +309,11 @@
                     
                     <!-- Reply Metrics -->
                     {#if reply.likes}
+                      {@const rm = formatLikes(reply.likes)}
                       <div class="flex items-center space-x-4 text-gray-500 text-xs">
-                        <span>{formatNumber(formatLikes(reply.likes).comments)}</span>
-                        <span>{formatNumber(formatLikes(reply.likes).retweets)}</span>
-                        <span>{formatNumber(formatLikes(reply.likes).likes)}</span>
+                        <span>{formatNumber(rm.comments)}</span>
+                        <span>{formatNumber(rm.retweets)}</span>
+                        <span>{formatNumber(rm.likes)}</span>
                       </div>
                     {/if}
                   </div>

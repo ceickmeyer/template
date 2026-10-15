@@ -1,10 +1,10 @@
-<!-- src/routes/tweets/+page.svelte -->
+<!-- src/routes/admin/tweets/+page.svelte -->
 <script lang="ts">
   import { supabase } from '$lib/supabase.js';
   import { onMount } from 'svelte';
   import TweetDisplay from '$lib/components/TweetDisplay.svelte';
 
-  let tweets = [];
+  let tweets: Record<string, any>[] = [];
   let loading = true;
   let error = '';
   let searchTerm = '';
@@ -21,7 +21,6 @@
         .from('tweets')
         .select('*');
 
-      // Apply sorting
       if (sortBy === 'newest') {
         query = query.order('created_at', { ascending: false });
       } else if (sortBy === 'oldest') {
@@ -45,7 +44,6 @@
     }
   }
 
-  // Filter tweets based on search term
   $: filteredTweets = tweets.filter(tweet => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
@@ -54,11 +52,6 @@
       tweet.markdown_content.toLowerCase().includes(term)
     );
   });
-
-  // Reload when sort changes
-  $: if (sortBy) {
-    loadTweets();
-  }
 </script>
 
 <svelte:head>
@@ -67,8 +60,6 @@
 
 <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
   <div class="max-w-4xl mx-auto">
-    
-
 
     <!-- Search and Filters -->
     {#if tweets.length > 0}
@@ -87,7 +78,7 @@
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
-          
+
           <!-- Sort -->
           <div class="sm:w-48">
             <label for="sort" class="block text-sm font-medium text-gray-700 mb-1">
@@ -96,6 +87,7 @@
             <select
               id="sort"
               bind:value={sortBy}
+              on:change={loadTweets}
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="newest">Newest first</option>
@@ -104,7 +96,7 @@
             </select>
           </div>
         </div>
-        
+
         {#if searchTerm}
           <div class="mt-2 text-sm text-gray-600">
             Showing {filteredTweets.length} of {tweets.length} tweets
@@ -147,13 +139,13 @@
         <p class="mt-1 text-sm text-gray-500">Get started by creating your first tweet archive.</p>
         <div class="mt-6 flex justify-center space-x-3">
           <a
-            href="/"
+            href="/admin/create"
             class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
           >
             Create Tweet
           </a>
           <a
-            href="admin/parse"
+            href="/admin/parse"
             class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
           >
             Parse from Clipboard
@@ -166,7 +158,7 @@
       <div class="text-center bg-white rounded-lg shadow p-8">
         <h3 class="mt-2 text-sm font-medium text-gray-900">No tweets found</h3>
         <p class="mt-1 text-sm text-gray-500">
-          Try adjusting your search terms or 
+          Try adjusting your search terms or
           <button
             type="button"
             on:click={() => searchTerm = ''}
@@ -182,7 +174,7 @@
       <div class="space-y-6">
         {#each filteredTweets as tweet (tweet.id)}
           <div class="bg-white rounded-lg shadow overflow-hidden">
-            
+
             <!-- Tweet Header with Admin Controls -->
             <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
               <div class="flex items-center justify-between">
@@ -195,7 +187,7 @@
                     • Slug: <code class="text-xs bg-gray-200 px-1 rounded">{tweet.slug}</code>
                   </p>
                 </div>
-                
+
                 <!-- Admin Action Buttons -->
                 <div class="flex items-center space-x-2">
                   <a
@@ -215,7 +207,7 @@
                 </div>
               </div>
             </div>
-            
+
             <!-- Tweet Content -->
             <div class="p-4">
               <TweetDisplay {tweet} />
@@ -223,7 +215,7 @@
           </div>
         {/each}
       </div>
-      
+
       <!-- Pagination info -->
       <div class="mt-8 text-center text-sm text-gray-500">
         {#if searchTerm}
@@ -235,3 +227,4 @@
     {/if}
   </div>
 </div>
+ok

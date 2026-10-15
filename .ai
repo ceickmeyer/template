@@ -1,26 +1,36 @@
-# Twitter Archive System - Project Guide
+# Museum of Twitter - Project Guide
 
 ## Overview
-Build a Twitter-like archive system using SvelteKit, Supabase, and custom markdown syntax to recreate and store tweet-like content with media support.
+A Twitter-like archive system built with SvelteKit and Supabase. Tweets are authored as custom bracket-tag markdown, stored as raw text, and parsed on read (client and server) into structured data for rendering. Admin routes (password-gated) create/edit/import tweets and manage a rotating "featured tweet"; public routes display the archive as a feed and individual permalinked tweets.
+
+This doc describes the codebase as it actually exists, not an aspirational plan — keep it in sync when routes, components, or the schema change.
 
 ## Tech Stack
-- **Frontend**: SvelteKit + TypeScript + Tailwind CSS
-- **Backend**: Supabase (Database + Storage)
-- **Hosting**: Vercel
-- **Custom Markdown Parser** for tweet formatting
+- **Frontend**: SvelteKit 2 (Svelte 5, runes) + TypeScript + Tailwind CSS v4
+- **Backend**: Supabase (Postgres + Storage + Auth)
+- **Admin auth**: `@supabase/ssr` cookie-based sessions (email+password), session validated server-side in `hooks.server.js` and gated in `admin/+layout.server.js`
+- **Custom markdown parser**: hand-written bracket-tag parser (no external markdown library)
+- **Font**: self-hosted "TwitterChirp" (`/fonts/chirp.css`, loaded in `+layout.svelte`)
 
 ## Custom Markdown Syntax
+
+Tags: `[name]`, `[handle]`, `[avatar]` (optional, filename in the `tweet-media` storage bucket), `[body]`, `[media]` (optional, comma-separated filenames), `[time]` (optional, defaults to "now" if omitted), `[likes]` (optional, `comments,retweets,likes`, defaults to `0,0,0`).
 
 ### Basic Tweet
 ```
 [name]Steve Jobs[/name] [handle]@stevejobs[/handle] [body]Just released the iPhone. Revolutionary device that will change everything.[/body] [time]9:19 AM · Jan 9, 2007[/time] [likes]1240,892,5830[/likes]
 ```
 
+### With Avatar and Media
+```
+[name]Steve Jobs[/name] [handle]@stevejobs[/handle] [avatar]stevejobs-avatar.jpg[/avatar] [body]Here's the new iPhone![/body] [media]iphone-reveal.jpg,keynote-video.mp4[/media] [time]9:19 AM · Jan 9, 2007[/time] [likes]1240,892,5830[/likes]
+```
+
 ### Quote Tweet
 ```
 [name]Steve Jobs[/name] [handle]@stevejobs[/handle] [body]Thoughts on this?[/body]
-[quote] 
-  [name]Bill Gates[/name] [handle]@billgates[/handle] [body]The future of computing is mobile.[/body] 
+[quote]
+  [name]Bill Gates[/name] [handle]@billgates[/handle] [body]The future of computing is mobile.[/body]
 [/quote]
 [time]9:19 AM · Jan 9, 2007[/time] [likes]240,92,830[/likes]
 ```
@@ -28,269 +38,136 @@ Build a Twitter-like archive system using SvelteKit, Supabase, and custom markdo
 ### Reply Chain
 ```
 [name]Steve Jobs[/name] [handle]@stevejobs[/handle] [body]What do you think about the new iPhone?[/body] [time]9:19 AM · Jan 9, 2007[/time] [likes]1240,892,5830[/likes]
-[reply] 
-  [name]Tim Cook[/name] [handle]@timcook[/handle] [time]9:25 AM · Jan 9, 2007[/time] [body]Incredible innovation! This will change everything.[/body] [likes]340,92,430[/likes] 
-[/reply]
-[reply] 
-  [name]Jony Ive[/name] [handle]@jive[/handle] [time]9:30 AM · Jan 9, 2007[/time] [body]Beautiful design meets powerful technology.[/body] [likes]180,45,290[/likes] 
+[reply]
+  [name]Tim Cook[/name] [handle]@timcook[/handle] [time]9:25 AM · Jan 9, 2007[/time] [body]Incredible innovation! This will change everything.[/body] [likes]340,92,430[/likes]
 [/reply]
 ```
 
-### With Media
-```
-[name]Steve Jobs[/name] [handle]@stevejobs[/handle] [body]Here's the new iPhone![/body] [media]iphone-reveal.jpg,keynote-video.mp4[/media] [time]9:19 AM · Jan 9, 2007[/time] [likes]1240,892,5830[/likes]
+A tweet block cannot have both `[quote]` and `[reply]` — the parser throws if both are present. Media/avatar filenames are resolved to public URLs via `supabase.storage.from('tweet-media').getPublicUrl(filename)`; there's no DB table tracking uploaded files, just the storage bucket plus the filename referenced in the markdown.
+
+## Data Model
+
+Defined inline in `src/lib/utils/markdownParser.ts` (this is the canonical type — `src/lib/types/tweet.ts` is an older, unused set of interfaces left over from an earlier design and does not reflect current shapes):
+
+```typescript
+export interface TweetData {
+  name: string;
+  handle: string;
+  body: string;
+  avatar?: string;
+  media?: string[];
+  time?: string;
+  likes?: string;        // "comments,retweets,likes" — use formatLikes() to get numbers
+  quote?: TweetData;
+  replies?: TweetData[];
+}
+
+export interface ParseResult {
+  success: boolean;
+  data?: TweetData;
+  error?: string;
+}
 ```
 
 ## Database Schema
 
-### tweets table
+`.sql` at the repo root is now a verified reference of the live Supabase schema (checked directly via `information_schema`/`pg_policies`) — treat it as documentation, not something to run; the tables already exist and are populated. **This Supabase project is shared with several unrelated apps** (`bb_*`, `cl_*`, `pricedl_*`, `games`/`players`/`scores`, etc.) — only `tweets`, `current_featured_tweet`, and `featured_tweet_history` belong to this project.
+
+What the app actually reads/writes:
+
 ```sql
 CREATE TABLE tweets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title VARCHAR(255) NOT NULL, -- for admin reference
-  slug VARCHAR(255) UNIQUE NOT NULL, -- for URL routing
-  markdown_content TEXT NOT NULL,
-  parsed_json JSONB, -- store parsed tweet data for search/indexing
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  title VARCHAR NOT NULL,               -- admin-only label, not shown publicly
+  slug VARCHAR NOT NULL UNIQUE,         -- URL routing, generated from handle + random suffix
+  markdown_content TEXT NOT NULL,       -- the bracket-tag markdown; parsed on read, not stored as JSON
+  parsed_json JSONB,                    -- exists in the DB, unused by the app
+  tweet_date TIMESTAMP,                 -- exists in the DB, unused by the app
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create index for slug-based routing
-CREATE INDEX idx_tweets_slug ON tweets(slug);
-
--- Create index for search (future use)
-CREATE INDEX idx_tweets_content ON tweets USING GIN (parsed_json);
-```
-
-### media_files table (optional - for tracking uploaded media)
-```sql
-CREATE TABLE media_files (
+-- "Tweet of the day" rotation, shown on the homepage
+CREATE TABLE current_featured_tweet (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tweet_id UUID REFERENCES tweets(id) ON DELETE CASCADE,
-  filename VARCHAR(255) NOT NULL,
-  file_path VARCHAR(500) NOT NULL, -- supabase storage path
-  file_type VARCHAR(50) NOT NULL, -- image/video/etc
-  file_size INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  tweet_id UUID REFERENCES tweets(id),
+  featured_since DATE NOT NULL DEFAULT CURRENT_DATE,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+  -- single row; app deletes+reinserts to change it
+);
+
+CREATE TABLE featured_tweet_history (
+  tweet_id UUID NOT NULL REFERENCES tweets(id),
+  featured_date DATE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (tweet_id, featured_date)
 );
 ```
 
-## Project Structure
+Storage: a public `tweet-media` bucket holds avatar/media files, referenced by filename from markdown tags. No `media_files`/`media` table exists (a `media_files` table does exist in this Supabase project, but it belongs to a different app and is unrelated to tweets).
+
+**RLS is currently wide open**: `tweets`, `current_featured_tweet`, and `featured_tweet_history` each have an `ALL`/`USING (true)`/`WITH CHECK (true)` policy for the `public` role. The `@supabase/ssr` session gate in `admin/+layout.server.js` only protects rendering the `/admin/*` pages — it does not restrict database access. Since admin writes go through the plain anon-key client (`$lib/supabase.js`), anyone holding the anon key (shipped in the client bundle) can read, insert, update, or delete any tweet directly via the Supabase API, authenticated or not. Fixing this needs both a policy change (e.g. requiring `auth.role() = 'authenticated'` for writes) and switching admin mutations to a session-bound client that forwards the user's JWT — noted here, not applied, since it's a live database and the two changes need to land together.
+
+Two minor, low-risk cleanup items confirmed live but not yet acted on: `tweets` has both `idx_tweets_slug` and the `UNIQUE` constraint's own index (`tweets_slug_key`) on the same `slug` column — one is redundant — and the `parsed_json`/`tweet_date` columns above are dead weight with no code path writing to them.
+
+## Project Structure (actual)
 
 ```
 src/
+├── hooks.server.js                     # Supabase SSR client + safeGetSession per request
+├── app.d.ts                            # Locals typing (supabase, safeGetSession)
 ├── lib/
 │   ├── components/
-│   │   ├── TweetRenderer.svelte        # Main tweet display component
-│   │   ├── TweetEditor.svelte          # Admin editor for creating tweets
-│   │   ├── MediaUploader.svelte        # Handle paste/upload media
-│   │   ├── MarkdownPreview.svelte      # Live preview of markdown
-│   │   └── ui/
-│   │       ├── TweetCard.svelte        # Individual tweet styling
-│   │       ├── QuoteTweet.svelte       # Quote tweet styling
-│   │       ├── ReplyChain.svelte       # Reply chain styling
-│   │       └── MediaGallery.svelte     # Media display component
+│   │   ├── Navigation.svelte           # Top-level site nav (in root +layout.svelte)
+│   │   ├── FeedNavigation.svelte       # Search / sort / theme controls for the home feed
+│   │   ├── FeaturedTweet.svelte        # Wraps UserTweetDisplay with a "Featured" label
+│   │   ├── TweetDisplay.svelte         # Admin-only preview render (Tailwind, includes raw-JSON debug panel)
+│   │   ├── UserTweetDisplay.svelte     # Public-facing render (dark Twitter-style theme, lightbox, share button)
+│   │   └── TweetCreator.svelte         # Admin create/edit form: markdown editor, paste/upload/avatar handling, sample templates
 │   ├── utils/
-│   │   ├── markdownParser.ts           # Parse custom markdown to JSON
-│   │   ├── tweetRenderer.ts            # Convert JSON to display data
-│   │   ├── mediaUpload.ts              # Handle Supabase storage uploads
-│   │   └── slugify.ts                  # Generate URL-friendly slugs
+│   │   ├── markdownParser.ts           # TweetMarkdownParser: parse/generate/validate bracket-tag markdown; slug + likes helpers
+│   │   ├── twitterClipboardParser.ts   # Parses HTML copied from twitter.com/x.com into TweetData-shaped fields; image re-download helper
+│   │   ├── twitterTextParser.js        # Highlights #hashtags/@handles in rendered tweet body HTML
+│   │   └── featuredTweet.js            # Featured-tweet rotation: get/set/rotate, 30-day no-repeat history
 │   ├── types/
-│   │   └── tweet.ts                    # TypeScript interfaces
-│   └── supabase.js                     # Existing Supabase client
+│   │   └── tweet.ts                    # UNUSED — superseded by TweetData in markdownParser.ts; safe to remove
+│   └── supabase.js                     # Anon-key Supabase client used by components/routes for data reads/writes
 ├── routes/
-│   ├── +page.svelte                    # Home page - list all tweets
-│   ├── admin/
-│   │   ├── +page.svelte                # Admin dashboard
-│   │   ├── create/
-│   │   │   └── +page.svelte            # Create new tweet
-│   │   └── edit/
-│   │       └── [slug]/
-│   │           └── +page.svelte        # Edit existing tweet
-│   └── [slug]/
-│       └── +page.svelte                # Individual tweet view
-└── app.css                             # Existing Tailwind imports
+│   ├── +layout.svelte                  # Loads app.css, chirp font, renders Navigation
+│   ├── +page.svelte                    # Home feed: search, sort (newest/oldest/shuffle), theming, featured tweet, pagination
+│   ├── +error.svelte
+│   ├── [slug]/
+│   │   ├── +page.server.js             # Loads one tweet by slug + full tweet list (for prev/next nav)
+│   │   └── +page.svelte                # Public single-tweet view
+│   └── admin/
+│       ├── +layout.server.js           # Redirects to /admin/login when there's no session (except the login page itself)
+│       ├── +page.svelte                # Admin dashboard (links to create/parse/tweets/featured)
+│       ├── login/, logout/             # Supabase email+password auth actions
+│       ├── create/+page.svelte         # Uses TweetCreator
+│       ├── parse/+page.svelte          # Paste Twitter/X HTML → TweetCreator-style save, via twitterClipboardParser
+│       ├── featured/+page.svelte       # Manually set/rotate the featured tweet
+│       ├── edit/[slug]/+page.svelte    # Legacy URL — immediately redirects to /admin/tweets/[slug]/edit
+│       └── tweets/
+│           ├── +page.svelte            # List all tweets (uses TweetDisplay)
+│           └── [slug]/
+│               ├── +page.svelte        # Single-tweet admin view (uses TweetDisplay)
+│               └── edit/+page.svelte   # Edit form (own inline markdown editor + TweetDisplay preview)
 ```
 
-## TypeScript Interfaces
+Not present despite sometimes being assumed: `TweetRenderer.svelte`, `TweetEditor.svelte`, `MediaUploader.svelte`, `MarkdownPreview.svelte`, `mediaUpload.ts`, `slugify.ts`, any `ui/` subfolder. If you're looking for "the tweet renderer," it's `TweetDisplay.svelte` (admin) or `UserTweetDisplay.svelte` (public) depending on context.
 
-```typescript
-// src/lib/types/tweet.ts
+## Key Behaviors Worth Knowing
 
-export interface MediaFile {
-  filename: string;
-  url: string;
-  type: 'image' | 'video';
-}
+- **Two render paths, one parser**: both display components call `TweetMarkdownParser.parse()` independently and duplicate avatar-initial/media-grid/metrics logic. A rendering fix (e.g. video-file detection) needs to be applied to both `TweetDisplay.svelte` and `UserTweetDisplay.svelte`.
+- **Featured tweet rotation** runs client-side on every homepage load (`loadFeaturedTweet()` in `+page.svelte`): checks whether today's rotation happened, fetches the current featured tweet, and initializes one if none exists. It is not cached or server-scheduled.
+- **Feed preferences** (sort order, theme) persist in `localStorage`, not per-user in the DB.
+- **Two tweet-import paths**: manual markdown entry (`TweetCreator.svelte`, used by `/admin/create`) and clipboard-HTML import (`twitterClipboardParser.ts`, used by `/admin/parse`). Both end up writing the same `{title, slug, markdown_content}` shape to `tweets`.
+- **Engagement numbers on imported tweets are synthetic**: `twitterClipboardParser.ts` generates plausible-looking like/retweet/comment counts rather than scraping them from the pasted tweet, since the actual counts generally aren't reliably present in what gets copied from twitter.com/x.com.
+- **Admin writes use the plain anon-key client** (`$lib/supabase.js`), not a session-bound server client — write authorization is enforced by Supabase RLS policies, not by SvelteKit. The page-level session gate in `admin/+layout.server.js` only protects rendering the admin UI.
 
-export interface TweetMetrics {
-  comments: number;
-  retweets: number;
-  likes: number;
-}
+## Known Cleanup Candidates (not yet done — require a live-DB change, so flagged rather than applied)
+- **RLS on `tweets`/`current_featured_tweet`/`featured_tweet_history` is fully open** to the `public` role (see Database Schema above) — the biggest one, since it means the admin login doesn't actually gate writes at the data layer.
+- `tweets.parsed_json` and `tweets.tweet_date` columns (plus the GIN index on `parsed_json`) are live in the DB but unused by any code path.
+- `tweets` has a redundant index: `idx_tweets_slug` duplicates the index the `UNIQUE (slug)` constraint already creates (`tweets_slug_key`).
 
-export interface BaseTweet {
-  name: string;
-  handle: string;
-  body: string;
-  time: string;
-  likes: TweetMetrics;
-  media?: MediaFile[];
-}
-
-export interface QuoteTweet extends BaseTweet {
-  quote: BaseTweet;
-}
-
-export interface ReplyTweet extends BaseTweet {
-  // replies are just BaseTweet objects
-}
-
-export interface TweetChain extends BaseTweet {
-  replies: ReplyTweet[];
-}
-
-export interface ParsedTweet {
-  id: string;
-  type: 'basic' | 'quote' | 'chain';
-  mainTweet: BaseTweet | QuoteTweet | TweetChain;
-}
-
-export interface StoredTweet {
-  id: string;
-  title: string;
-  slug: string;
-  markdown_content: string;
-  parsed_json: ParsedTweet;
-  created_at: string;
-  updated_at: string;
-}
-```
-
-## Key Components to Build
-
-### 1. Markdown Parser (`src/lib/utils/markdownParser.ts`)
-- Parse custom markdown syntax into structured JSON
-- Handle nested structures (quotes, replies)
-- Validate required fields
-- Extract and process media references
-
-### 2. Media Upload System (`src/lib/utils/mediaUpload.ts`)
-- Handle paste events in editor
-- Upload to Supabase Storage
-- Generate public URLs
-- Support drag & drop
-- File type validation
-
-### 3. Tweet Renderer (`src/lib/components/TweetRenderer.svelte`)
-- Convert parsed JSON to Twitter-like UI
-- Handle different tweet types (basic, quote, chain)
-- Responsive design
-- Media gallery support
-
-### 4. Admin Editor (`src/lib/components/TweetEditor.svelte`)
-- Live markdown preview
-- Media paste/upload
-- Slug generation
-- Save/update functionality
-
-## Routing Strategy
-
-- `/` - Homepage with tweet list
-- `/admin` - Admin dashboard
-- `/admin/create` - Create new tweet
-- `/admin/edit/[slug]` - Edit existing tweet
-- `/[slug]` - Individual tweet view (public)
-
-## CSS Styling Approach
-
-Use Tailwind for layout and basic styling, plus custom CSS for Twitter-specific elements:
-
-```css
-/* Custom Twitter-like styling */
-.tweet-card {
-  @apply bg-white border border-gray-200 rounded-xl p-4 hover:bg-gray-50 transition-colors;
-}
-
-.tweet-header {
-  @apply flex items-center space-x-3 mb-3;
-}
-
-.tweet-avatar {
-  @apply w-12 h-12 bg-gray-300 rounded-full flex-shrink-0;
-}
-
-.tweet-body {
-  @apply text-gray-900 text-base leading-relaxed mb-3;
-}
-
-.tweet-metrics {
-  @apply flex items-center space-x-6 text-gray-500 text-sm;
-}
-
-.quote-tweet {
-  @apply border border-gray-200 rounded-2xl p-3 mt-3 bg-gray-50;
-}
-
-.reply-chain {
-  @apply border-l-2 border-gray-200 ml-6 pl-4 mt-4;
-}
-```
-
-## Development Phases
-
-### Phase 1: Core Infrastructure
-1. Set up database schema
-2. Build markdown parser
-3. Create basic tweet renderer
-4. Implement CRUD operations
-
-### Phase 2: Admin Interface
-1. Build tweet editor with live preview
-2. Implement media upload system
-3. Add slug generation and validation
-4. Create admin dashboard
-
-### Phase 3: Public Interface
-1. Build public tweet viewing pages
-2. Implement routing system
-3. Add responsive design
-4. Optimize for performance
-
-### Phase 4: Enhancements
-1. Add search functionality
-2. Implement better media handling
-3. Add export/import features
-4. Performance optimizations
-
-## Supabase Storage Setup
-
-Create a storage bucket for media files:
-```sql
--- Create storage bucket
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('tweet-media', 'tweet-media', true);
-
--- Set up RLS policies for storage
-CREATE POLICY "Allow public read access" ON storage.objects
-  FOR SELECT USING (bucket_id = 'tweet-media');
-
-CREATE POLICY "Allow authenticated upload" ON storage.objects
-  FOR INSERT WITH CHECK (bucket_id = 'tweet-media');
-```
-
-## Questions for Implementation
-
-1. **Avatar Handling**: Should user avatars be stored as media files, or will you use placeholder avatars/initials?
-
-2. **Time Format**: Do you want to store exact timestamps or just display strings? The format "9:19 AM · Sep 3, 2025" suggests display strings.
-
-3. **Verification Badges**: Will you need support for verified checkmarks or other profile indicators?
-
-4. **Link Handling**: Should URLs in tweet bodies be automatically converted to clickable links?
-
-5. **Character Limits**: Do you want to enforce Twitter-like character limits, or allow unlimited text?
-
-6. **Draft System**: Do you need the ability to save drafts before publishing?
-
-This guide provides a comprehensive roadmap for building your Twitter archive system. Each component can be built incrementally, allowing you to test and refine the custom markdown approach as you develop.
+Already fixed: `src/lib/types/tweet.ts` and `src/lib/components/TweetParser.svelte` (plus the `@tiptap/*` deps it was the sole consumer of) have been deleted; `.sql` now reflects the verified live schema instead of an old, inaccurate one.

@@ -10,6 +10,14 @@ export interface TweetData {
   likes?: string;
   quote?: TweetData;
   replies?: TweetData[];
+  // Set when this tweet is itself a reply, carrying who it replies to (X
+  // shows this as "Replying to @handle" above the tweet body). Distinct
+  // from `replies`, which is a curated chain of visible reply tweets.
+  replyingTo?: string;
+  // Set instead of every other field when the tweet (almost always a
+  // quoted one) has been deleted/suspended by the time it was archived —
+  // X shows a tombstone message in its place rather than real content.
+  unavailable?: string;
 }
 
 export interface ParseResult {
@@ -38,7 +46,7 @@ export class TweetMarkdownParser {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -75,6 +83,19 @@ export class TweetMarkdownParser {
    * Parse a tweet block (main, quote, or reply)
    */
   private static parseTweetBlock(content: string, context: string): TweetData {
+    // A deleted/suspended tweet (almost always a quoted one) is represented
+    // by [unavailable] instead of the normal name/handle/body fields —
+    // short-circuit before requiring any of those.
+    const unavailable = this.extractTag(content, 'unavailable', context, false);
+    if (unavailable !== null) {
+      return {
+        name: '',
+        handle: '',
+        body: '',
+        unavailable: unavailable.trim() || 'This Tweet is unavailable.'
+      };
+    }
+
     // First, extract and validate nested structures
     const { mainContent, quote, replies } = this.extractNestedStructures(content, context);
     
@@ -149,6 +170,11 @@ export class TweetMarkdownParser {
     const mediaString = this.extractTag(content, 'media', context, false);
     let time = this.extractTag(content, 'time', context, false);
     let likes = this.extractTag(content, 'likes', context, false);
+    let replyingTo = this.extractTag(content, 'replyingto', context, false);
+
+    if (replyingTo && !replyingTo.trim().startsWith('@')) {
+      replyingTo = '@' + replyingTo.trim();
+    }
 
     // Parse media files
     const media = mediaString ? 
@@ -183,7 +209,8 @@ export class TweetMarkdownParser {
       avatar: avatar || undefined,
       media: media && media.length > 0 ? media : undefined,
       time,
-      likes
+      likes,
+      replyingTo: replyingTo?.trim() || undefined
     };
   }
 
@@ -214,29 +241,37 @@ export class TweetMarkdownParser {
    * Generate markdown for a single tweet block
    */
   private static generateTweetBlock(tweetData: TweetData): string {
+    if (tweetData.unavailable) {
+      return `[unavailable]${tweetData.unavailable}[/unavailable]`;
+    }
+
     let markdown = '';
-    
+
     markdown += `[name]${tweetData.name}[/name]\n`;
     markdown += `[handle]${tweetData.handle}[/handle]\n`;
-    
+
+    if (tweetData.replyingTo) {
+      markdown += `[replyingto]${tweetData.replyingTo}[/replyingto]\n`;
+    }
+
     if (tweetData.avatar) {
       markdown += `[avatar]${tweetData.avatar}[/avatar]\n`;
     }
-    
+
     markdown += `[body]${tweetData.body}[/body]\n`;
-    
+
     if (tweetData.media && tweetData.media.length > 0) {
       markdown += `[media]${tweetData.media.join(',')}[/media]\n`;
     }
-    
+
     if (tweetData.time) {
       markdown += `[time]${tweetData.time}[/time]\n`;
     }
-    
+
     if (tweetData.likes) {
       markdown += `[likes]${tweetData.likes}[/likes]`;
     }
-    
+
     return markdown;
   }
 }

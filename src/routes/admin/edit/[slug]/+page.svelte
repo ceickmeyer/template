@@ -1,5 +1,9 @@
 <script lang="ts">
-    import type { PageProps } from './$types';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
+  import { onMount } from 'svelte';
 
-    let { data }: PageProps = $props();
+  onMount(() => {
+    goto(`/admin/tweets/${$page.params.slug}/edit`, { replaceState: true });
+  });
 </script>

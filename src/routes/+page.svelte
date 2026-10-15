@@ -18,21 +18,21 @@
   // FeedNavigation state
   let searchTerm = '';
   let sortOrder: 'newest' | 'oldest' | 'shuffle' = 'newest';
-  let shuffledTweets = [];
   let theme: 'dark' | 'light' = 'dark';
   
   const TWEETS_PER_PAGE = 20;
   
-  onMount(async () => {
-    // Load saved theme and sort preferences FIRST
+  onMount(() => {
     loadThemePreference();
-    
-    // Initialize featured tweet system and check for daily rotation
-    await loadFeaturedTweet();
-    
-    // Load tweets with the saved sort order
-    await loadTweets(false, '', sortOrder);
-    setupInfiniteScroll();
+
+    // Kick off async loading without blocking the cleanup return
+    (async () => {
+      await loadFeaturedTweet();
+      await loadTweets(false, '', sortOrder);
+    })();
+
+    // Return cleanup synchronously so Svelte calls it on destroy
+    return setupInfiniteScroll();
   });
 
   function loadThemePreference() {
@@ -47,7 +47,6 @@
     }
     
     if (savedSortOrder) {
-      console.log('Loading saved sort order:', savedSortOrder); // Debug log
       sortOrder = savedSortOrder;
     }
   }
@@ -189,8 +188,6 @@
 
       const { data, error: fetchError } = await query;
 
-      console.log('Loaded tweets with sort:', currentSort, 'Count:', data?.length); // Debug log
-
       if (fetchError) {
         console.error('Search error:', fetchError);
         throw fetchError;
@@ -228,11 +225,6 @@
         }
       }
 
-      // Generate shuffled version when tweets are loaded (only for non-search, non-shuffle)
-      if (!searchQuery && currentSort !== 'shuffle') {
-        generateShuffledTweets();
-      }
-
     } catch (err) {
       console.error('Error fetching tweets:', err);
       error = 'Failed to load tweets';
@@ -242,10 +234,6 @@
     }
   }
 
-  function generateShuffledTweets() {
-    // Create a shuffled copy of tweets
-    shuffledTweets = [...tweets].sort(() => Math.random() - 0.5);
-  }
 
   function setupInfiniteScroll() {
     function handleScroll() {
@@ -277,11 +265,9 @@
     
     // Always reload when search term changes
     if (isNowSearching) {
-      console.log('Searching for:', searchTerm); // Debug log
       loadTweets(false, searchTerm);
     } else if (wasSearching && !isNowSearching) {
       // Cleared search - reload normal feed
-      console.log('Clearing search, loading normal feed'); // Debug log
       lastTweetId = null;
       hasMore = true;
       loadTweets(false, '');
@@ -291,9 +277,7 @@
   function handleSort(event: CustomEvent<{ sortOrder: 'newest' | 'oldest' | 'shuffle' }>) {
     const newSortOrder = event.detail.sortOrder;
     sortOrder = newSortOrder;
-    
-    console.log('Sort changed to:', sortOrder); // Debug log
-    
+
     // Save the sort preference
     if (typeof window !== 'undefined') {
       localStorage.setItem('feed-sort-order', sortOrder);
@@ -317,9 +301,6 @@
     theme = event.detail.theme;
     applyTheme(theme);
   }
-
-  // Computed display tweets - now that sorting is done at DB level, just return tweets
-  $: displayTweets = tweets; // Database handles all sorting now
 
   // Show featured tweet only when not searching
   $: showFeaturedTweet = !searchTerm && featuredTweet;
@@ -377,7 +358,7 @@
           </button>
         </div>
       </div>
-    {:else if displayTweets.length === 0 && !showFeaturedTweet}
+    {:else if tweets.length === 0 && !showFeaturedTweet}
       <div class="twitter-empty">
         <div class="twitter-empty-content">
           {#if searchTerm}
@@ -399,7 +380,7 @@
       {/if}
 
       <!-- Regular Tweet Articles -->
-      {#each displayTweets as tweet (tweet.id)}
+      {#each tweets as tweet (tweet.id)}
         <article class="twitter-tweet-article">
           <UserTweetDisplay {tweet} clickable={true} />
         </article>
@@ -419,12 +400,12 @@
             </div>
           </div>
         {/if}
-      {:else if searchTerm && displayTweets.length > 0}
+      {:else if searchTerm && tweets.length > 0}
         <!-- Search results end indicator -->
         <div class="twitter-end">
           <div class="twitter-end-content">
             <p class="twitter-end-text">End of search results</p>
-            <p class="twitter-end-subtext">Found {displayTweets.length} matching tweets</p>
+            <p class="twitter-end-subtext">Found {tweets.length} matching tweets</p>
           </div>
         </div>
       {/if}

@@ -150,6 +150,13 @@ function showShareToast(message: string) {
     
     <!-- Content aligned with avatar left edge -->
     <div class="tweet-content-aligned">
+      <!-- Replying To -->
+      {#if parsedTweet.replyingTo}
+        <div class="tweet-replying-to">
+          Replying to {parsedTweet.replyingTo}
+        </div>
+      {/if}
+
       <!-- Tweet Body -->
       <div class="tweet-body">
 {@html parseTwitterText(parsedTweet.body)}      </div>
@@ -193,6 +200,9 @@ function showShareToast(message: string) {
 <!-- Quote Tweet -->
 {#if parsedTweet.quote}
 <div class="tweet-quote-container">
+  {#if parsedTweet.quote.unavailable}
+  <p class="tweet-quote-unavailable">{parsedTweet.quote.unavailable}</p>
+  {:else}
   <div class="tweet-quote-content">
     <!-- Avatar and Author Info Row -->
     <div class="tweet-quote-header">
@@ -273,9 +283,10 @@ function showShareToast(message: string) {
       {/if}
     </div>
   </div>
+  {/if}
 </div>
 {/if}
-      
+
       <!-- Time -->
       {#if parsedTweet.time}
         <div class="tweet-time">
@@ -545,6 +556,14 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
     /* This container aligns all content with the avatar's left edge */
   }
   
+  /* Replying To */
+  .tweet-replying-to {
+    font-size: 14px;
+    line-height: 20px;
+    color: rgb(113, 118, 123);
+    margin-top: 2px;
+  }
+
   /* Tweet Body */
   .tweet-body {
     font-size: 16px;
@@ -552,9 +571,9 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
     color: rgb(231, 233, 234);
     white-space: pre-wrap;
     margin: 12px 0;
-    
+
   }
-  
+
   /* Time */
   .tweet-time {
     font-size: 15px;
@@ -624,6 +643,13 @@ font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
   border-radius: 16px;
   padding: 12px;
   margin: 12px 0;
+}
+
+.tweet-quote-unavailable {
+  font-size: 14px;
+  font-style: italic;
+  color: rgb(113, 118, 123);
+  margin: 0;
 }
 
 .tweet-quote-content {

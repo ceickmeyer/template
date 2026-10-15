@@ -1,7 +1,7 @@
 // src/routes/[slug]/+page.server.js
 import { supabase } from '$lib/supabase.js';
 import { TweetMarkdownParser } from '$lib/utils/markdownParser.js';
-import { error } from '@sveltejs/kit';
+import { error, isHttpError } from '@sveltejs/kit';
 
 export async function load({ params }) {
   const { slug } = params;
@@ -44,6 +44,7 @@ export async function load({ params }) {
     };
 
   } catch (err) {
+    if (isHttpError(err)) throw err; // re-throw HttpErrors (e.g. 404) unchanged
     console.error('Server load error:', err);
     throw error(500, 'Failed to load tweet');
   }

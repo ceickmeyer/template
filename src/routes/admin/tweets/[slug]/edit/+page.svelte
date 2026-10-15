@@ -24,6 +24,25 @@
 
   onMount(async () => {
     await loadTweet();
+
+    // Tweet is loaded — safe to check for an autosaved draft
+    if (typeof window !== 'undefined' && tweet) {
+      const raw = localStorage.getItem(`tweet-draft-${tweet.id}`);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.markdownContent !== originalMarkdown) {
+            const loadDraft = confirm('Found unsaved changes. Load draft?');
+            if (loadDraft) {
+              title = parsed.title || title;
+              markdownContent = parsed.markdownContent || markdownContent;
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to load draft:', err);
+        }
+      }
+    }
   });
 
   async function loadTweet() {
@@ -103,7 +122,7 @@
       // If slug changed, redirect to new URL
       if (newSlug !== tweet.slug) {
         setTimeout(() => {
-          goto(`/tweets/${newSlug}/edit`);
+          goto(`/admin/tweets/${newSlug}/edit`);
         }, 1000);
       }
 
@@ -159,7 +178,7 @@
       if (error) throw error;
 
       // Redirect to tweets list
-      goto('/tweets');
+      goto('/admin/tweets');
 
     } catch (error) {
       console.error('Delete error:', error);
@@ -185,28 +204,6 @@
       timestamp: Date.now()
     }));
   }
-
-  // Load draft on mount
-  onMount(() => {
-    if (typeof window !== 'undefined' && tweet) {
-      const draft = localStorage.getItem(`tweet-draft-${tweet.id}`);
-      if (draft) {
-        try {
-          const parsed = JSON.parse(draft);
-          // Only load draft if it's newer than the last save and different
-          if (parsed.markdownContent !== originalMarkdown) {
-            const loadDraft = confirm('Found unsaved changes. Load draft?');
-            if (loadDraft) {
-              title = parsed.title || title;
-              markdownContent = parsed.markdownContent || markdownContent;
-            }
-          }
-        } catch (error) {
-          console.warn('Failed to load draft:', error);
-        }
-      }
-    }
-  });
 
   // Clear draft after successful save
   $: if (successMessage && typeof window !== 'undefined' && tweet) {
