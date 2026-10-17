@@ -142,6 +142,7 @@ src/
 │   │   ├── media.ts                    # getMediaUrl(), isVideo()
 │   │   ├── tweetAdmin.ts               # deleteTweet(), deleteMediaFiles(), referencedMediaFiles()
 │   │   └── featuredTweet.js            # Featured-tweet rotation: get/set/rotate, 30-day no-repeat history
+│   ├── server/screenshotExtract.ts     # Claude vision call + JSON schema for the screenshot importer (server-only)
 │   ├── types/tweet.ts                  # StoredTweet (a `tweets` row)
 │   └── supabase.js                     # Anon-key Supabase client used by components/routes for data reads/writes
 ├── routes/
@@ -158,6 +159,8 @@ src/
 │       ├── login/, logout/             # Supabase email+password auth actions
 │       ├── create/+page.svelte         # Uses TweetCreator
 │       ├── parse/+page.svelte          # Import: paste copied X HTML or archiver JSON anywhere on the page
+│       ├── screenshot/+page.svelte     # Import from a screenshot: Claude reads it, you adjust boxes/fields, crops upload on save
+│       ├── screenshot-extract/+server.ts # Admin-only: sends the screenshot to Claude (needs ANTHROPIC_API_KEY)
 │       ├── featured/+page.svelte       # Manually set/rotate the featured tweet
 │       ├── media-proxy/+server.js      # Admin-only fetch of X media (twimg hosts only) for the importer
 │       ├── media-cleanup/+server.js    # Admin-only storage delete (abandoned uploads, deleted tweets)
@@ -179,8 +182,13 @@ tools/tampermonkey/museum-of-twitter-archiver.user.js   # Browser script: 📋 A
 - **Featured tweet rotation** runs client-side on every homepage load (`loadFeaturedTweet()` in `+page.svelte`): checks whether today's rotation happened, fetches the current featured tweet, and initializes one if none exists. It is not cached or server-scheduled.
 - **Feed preferences** (sort order, theme) persist in `localStorage`, not per-user in the DB.
 - **Two tweet-import paths**: manual markdown entry (`TweetCreator.svelte`, used by `/admin/create`) and clipboard-HTML import (`twitterClipboardParser.ts`, used by `/admin/parse`). Both end up writing the same `{title, slug, markdown_content}` shape to `tweets`.
+- **Screenshot importer** (`/admin/screenshot`): the image is downscaled in the browser to stay under the API's own resize limit (1568px long edge / ~1.15MP) so the returned box coordinates match; boxes are kept in original-image pixels and the crops are cut from the original. Uses Claude Sonnet 5.5 at low effort (~1¢ per screenshot). Crops only upload on save (and are deleted again if the save fails).
 - **Engagement numbers**: the Tampermonkey script captures real counts; plain copy/paste doesn't carry them, so that path falls back to plausible synthetic numbers.
 - **Admin writes use the plain anon-key client** (`$lib/supabase.js`), not a session-bound server client — write authorization is enforced by Supabase RLS policies, not by SvelteKit. The page-level session gate in `admin/+layout.server.js` only protects rendering the admin UI.
+
+## Environment variables
+
+`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` (needed at build time), `ANTHROPIC_API_KEY` (server-only, read at request time by `/admin/screenshot-extract`). Set all three in Vercel and in the local `.env`.
 
 ## Storage policies
 

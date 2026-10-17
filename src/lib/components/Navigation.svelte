@@ -5,6 +5,7 @@
   const links = [
     { href: '/admin/tweets', label: 'Tweets', match: (p: string) => p.startsWith('/admin/tweets') },
     { href: '/admin/parse', label: 'Import from X', match: (p: string) => p === '/admin/parse' },
+    { href: '/admin/screenshot', label: 'From screenshot', match: (p: string) => p === '/admin/screenshot' },
     { href: '/admin/create', label: 'Write markdown', match: (p: string) => p === '/admin/create' },
     { href: '/admin/featured', label: 'Featured', match: (p: string) => p === '/admin/featured' }
   ];

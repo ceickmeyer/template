@@ -2,6 +2,8 @@
 import { supabase } from '$lib/supabase.js';
 
 export function getMediaUrl(filename: string): string {
+  // Local crops not uploaded yet (the screenshot importer's live preview).
+  if (filename.startsWith('blob:')) return filename;
   return supabase.storage.from('tweet-media').getPublicUrl(filename).data.publicUrl;
 }
 

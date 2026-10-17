@@ -22,6 +22,7 @@
 
   const actions = [
     { href: '/admin/parse', title: 'Import from X', text: 'Paste a copied tweet (or the Tampermonkey archive JSON) and save it with its media.' },
+    { href: '/admin/screenshot', title: 'Import from screenshot', text: 'Recreate a deleted tweet from a screenshot — Claude reads it, you fix anything it missed.' },
     { href: '/admin/create', title: 'Write markdown', text: 'Build a tweet by hand with the markdown format, quotes, threads and uploads.' },
     { href: '/admin/tweets', title: 'Manage tweets', text: 'Search, preview, edit and delete archived tweets.' },
     { href: '/admin/featured', title: 'Featured tweet', text: 'Pick which tweet is pinned at the top of the public feed.' }
