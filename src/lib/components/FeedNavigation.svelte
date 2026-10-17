@@ -232,7 +232,7 @@
 
 <style>
   .feed-nav-container {
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: var(--hairline) solid var(--border-color);
     background-color: var(--nav-bg);
     backdrop-filter: blur(12px);
   }
@@ -311,7 +311,7 @@
     width: 100%;
     height: 36px;
     padding: 0 36px 0 36px;
-    border: 1px solid var(--border-color);
+    border: var(--hairline) solid var(--border-color);
     border-radius: 18px;
     background-color: var(--search-bg);
     color: var(--text-primary);
@@ -361,7 +361,7 @@
     padding: 8px 16px;
     background-color: var(--nav-bg-mobile);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: var(--hairline) solid var(--border-color);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -382,7 +382,7 @@
   
   /* Search results indicator */
   .feed-search-results {
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: var(--hairline) solid var(--border-color);
     background-color: rgba(29, 155, 240, 0.1);
   }
   

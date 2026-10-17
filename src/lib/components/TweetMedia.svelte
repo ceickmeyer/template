@@ -58,7 +58,7 @@
     display: grid;
     gap: 2px;
     margin-top: 12px;
-    border: 1px solid var(--border-color);
+    border: var(--hairline) solid var(--border-color);
     border-radius: 16px;
     overflow: hidden;
   }
@@ -110,8 +110,20 @@
     object-fit: cover;
   }
 
-  /* A lone item keeps its own aspect ratio, cropped only when very tall. */
-  .count-1 img,
+  /* A lone photo keeps its own shape like on X: up to 510px tall, and
+     the frame shrinks to the photo's width instead of cropping it. */
+  .count-1:has(img) {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .count-1 img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 510px;
+  }
+
   .count-1 video {
     height: auto;
     max-height: 510px;

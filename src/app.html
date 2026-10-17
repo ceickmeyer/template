@@ -10,6 +10,11 @@
 					document.documentElement.dataset.theme = 'light';
 				}
 			} catch (e) {}
+			// Separator width, matching X as measured: one device pixel on
+			// screens scaled between 1x and 2x (0.72px at 1.4x), 1px on
+			// high-density phones (3x). See --hairline in app.css.
+			var dpr = window.devicePixelRatio || 1;
+			document.documentElement.style.setProperty('--hairline', (dpr > 1 && dpr < 2 ? 1 / dpr : 1) + 'px');
 		</script>
 		%sveltekit.head%
 	</head>

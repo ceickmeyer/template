@@ -20,6 +20,8 @@
  */
 :root {
   color-scheme: dark;
+  /* Border width for separators — overridden to one device pixel by app.html. */
+  --hairline: 1px;
   --bg-primary: rgb(0, 0, 0);
   --bg-secondary: rgb(22, 24, 28);
   --text-primary: rgb(231, 233, 234);

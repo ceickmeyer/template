@@ -97,7 +97,7 @@
       <p class="tweet-quote-unavailable">{text(quote.unavailable)}</p>
     {:else}
       <div class="tweet-quote-header">
-        <TweetAvatar filename={quote.avatar} name={text(quote.name)} size={20} />
+        <TweetAvatar filename={quote.avatar} name={text(quote.name)} size={24} />
         <span class="tweet-quote-name">{text(quote.name)}</span>
         <span class="tweet-muted">{quote.handle}</span>
         {#if quote.time}
@@ -306,7 +306,7 @@
   .tweet-quote {
     margin-top: 12px;
     padding: 12px;
-    border: 1px solid var(--border-color);
+    border: var(--hairline) solid var(--border-color);
     border-radius: 16px;
   }
 
@@ -319,10 +319,6 @@
     line-height: 20px;
     white-space: nowrap;
     overflow: hidden;
-  }
-
-  .tweet-quote-header :global(.avatar) {
-    margin-right: 4px;
   }
 
   .tweet-quote-name {
@@ -362,28 +358,28 @@
     justify-content: space-between;
     margin-top: 12px;
     padding: 12px 4px;
-    border-top: 1px solid var(--border-color);
+    border-top: var(--hairline) solid var(--border-color);
   }
 
   .tweet-metric {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     font-size: 13px;
     line-height: 16px;
     color: var(--tweet-metrics-color);
   }
 
   .tweet-metric-icon {
-    width: 18px;
-    height: 18px;
+    width: 18.75px;
+    height: 18.75px;
     fill: currentColor;
     flex-shrink: 0;
   }
 
   /* Thread (a tweet with [reply] blocks) */
   /* Spacing measured from X's timeline: 8px between avatar and text,
-     a 32px action row 12px below the body, 24px between thread posts. */
+     the action row 12px below the body, 24px between thread posts. */
   .thread-post {
     display: flex;
     gap: 8px;
@@ -462,17 +458,19 @@
      only exists on the last one, pushed to the right edge. */
   .thread-metrics {
     display: grid;
-    /* X's row is reply / repost / like / views in equal columns, then
-       share at the right edge. Views aren't archived, so its column is
-       left empty to keep the others where X puts them. */
-    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    /* X's row (measured): reply / repost / like / views in equal columns,
+       then bookmark (18.75px + 8px) and share (18.75px), 4px apart, 34.75px
+       tall. Views and bookmarks aren't archived, so those slots stay empty
+       to keep everything else where X puts it. */
+    grid-template-columns: repeat(4, minmax(0, 1fr)) 26.75px 18.75px;
+    column-gap: 4px;
     align-items: center;
-    min-height: 32px;
+    min-height: 34.75px;
     margin-top: 12px;
   }
 
   .thread-share {
-    grid-column: 5;
+    grid-column: 6;
     display: inline-flex;
   }
 

@@ -2,25 +2,36 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
-  import { getMediaUrl, isVideo } from '$lib/utils/media';
+  import { getMediaUrl, previewMedia } from '$lib/utils/media';
   import { decodeHtmlEntities } from '$lib/utils/twitterTextParser.js';
 
   export let data;
 
   $: ({ tweet, parsedTweetData, previousSlug, nextSlug } = data);
 
-  // Link-preview fields: plain decoded text, and only a still image (a
-  // video file can't be an og:image).
+  // Link-preview fields: plain decoded text, and the tweet's first media
+  // (main post, then thread replies, then the quoted tweet) shown big at
+  // the top of the card. Photos go through /og/<slug>, which re-frames
+  // square ones so chat apps don't shrink them to a thumbnail. A video goes
+  // in og:video, with the first photo (else the avatar) as its still.
   $: description = parsedTweetData ? decodeHtmlEntities(parsedTweetData.body) : tweet.title;
   $: previewTitle = parsedTweetData
     ? `${decodeHtmlEntities(parsedTweetData.name)} (${parsedTweetData.handle})`
     : tweet.title;
-  $: previewImage = parsedTweetData?.media?.find((file: string) => !isVideo(file));
+  $: ({ video: previewVideo, image: previewImage } = parsedTweetData
+    ? previewMedia(parsedTweetData)
+    : { video: null, image: null });
   $: ogImage = previewImage
-    ? getMediaUrl(previewImage)
+    ? `https://www.museumoftwitter.com/og/${tweet.slug}`
     : parsedTweetData?.avatar
       ? getMediaUrl(parsedTweetData.avatar)
       : null;
+
+  function videoType(file: string) {
+    if (/\.webm$/i.test(file)) return 'video/webm';
+    if (/\.mov$/i.test(file)) return 'video/quicktime';
+    return 'video/mp4';
+  }
 
   function goToPrevious() {
     if (previousSlug) goto(`/${previousSlug}`);
@@ -43,11 +54,17 @@
   <meta property="og:url" content="https://www.museumoftwitter.com/{tweet.slug}" />
   <meta property="og:title" content={previewTitle} />
   <meta property="og:description" content={description} />
-  <meta name="twitter:card" content={previewImage ? 'summary_large_image' : 'summary'} />
+  <meta name="twitter:card" content={previewImage || previewVideo ? 'summary_large_image' : 'summary'} />
   <meta name="twitter:title" content={previewTitle} />
   <meta name="twitter:description" content={description} />
+  {#if previewVideo}
+    <meta property="og:video" content={getMediaUrl(previewVideo)} />
+    <meta property="og:video:secure_url" content={getMediaUrl(previewVideo)} />
+    <meta property="og:video:type" content={videoType(previewVideo)} />
+  {/if}
   {#if ogImage}
     <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content={description} />
     <meta name="twitter:image" content={ogImage} />
   {/if}
 </svelte:head>
@@ -136,7 +153,7 @@
 
   .tweet-card {
     overflow: hidden;
-    border: 1px solid var(--border-color);
+    border: var(--hairline) solid var(--border-color);
     border-radius: 16px;
     background-color: var(--bg-primary);
     box-shadow:

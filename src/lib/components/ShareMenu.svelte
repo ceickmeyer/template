@@ -55,11 +55,23 @@
     // Loaded on first use: it's most of this component's weight and most
     // visitors never copy an image.
     const { domToBlob } = await import('modern-screenshot');
+    // The copy takes each element's current look, and the share button is
+    // usually still hovered/highlighted from the click — draw it in the
+    // same resting gray as the other counts instead.
+    const restingColor = getComputedStyle(button).getPropertyValue('--tweet-metrics-color').trim();
     return domToBlob(target, {
       scale: 2,
       // The card itself is transparent; use the page's current theme color.
       backgroundColor: getComputedStyle(document.body).backgroundColor,
-      timeout: 15000
+      timeout: 15000,
+      onCloneNode: (clone) => {
+        for (const el of (clone as HTMLElement).querySelectorAll<HTMLElement | SVGElement>('.share-button, .share-button *')) {
+          el.style.backgroundColor = 'transparent';
+          el.style.color = restingColor;
+          el.style.fill = restingColor;
+          el.style.outline = 'none';
+        }
+      }
     });
   }
 
@@ -145,8 +157,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 6px;
-    margin: -6px;
+    /* 18.75px icon in a 34.75px hover circle, like X's action buttons. */
+    padding: 8px;
+    margin: -8px;
     border: none;
     border-radius: 50%;
     background: none;
@@ -171,8 +184,8 @@
   }
 
   svg {
-    width: 18px;
-    height: 18px;
+    width: 18.75px;
+    height: 18.75px;
     fill: currentColor;
   }
 
