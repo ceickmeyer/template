@@ -10,11 +10,14 @@ This doc describes the codebase as it actually exists, not an aspirational plan 
 - **Backend**: Supabase (Postgres + Storage + Auth)
 - **Admin auth**: `@supabase/ssr` cookie-based sessions (email+password), session validated server-side in `hooks.server.js` and gated in `admin/+layout.server.js`
 - **Custom markdown parser**: hand-written bracket-tag parser (no external markdown library)
-- **Font**: self-hosted "TwitterChirp" (`/fonts/chirp.css`, loaded in `+layout.svelte`)
+- **Font**: self-hosted "TwitterChirp" (`@font-face` rules in `src/app.css`, files in `static/fonts/`)
+- **Theming**: CSS variables in `src/app.css`. Public pages default to dark; `data-theme="light"` on `<html>` switches them (set before first paint by an inline script in `app.html`, toggled via `$lib/theme.ts`). The admin area always uses the light values via the `.admin-shell` wrapper in `admin/+layout.svelte`. Components read the variables directly — don't hardcode colors or add global `!important` overrides.
 
 ## Custom Markdown Syntax
 
-Tags: `[name]`, `[handle]`, `[avatar]` (optional, filename in the `tweet-media` storage bucket), `[body]`, `[media]` (optional, comma-separated filenames), `[time]` (optional, defaults to "now" if omitted), `[likes]` (optional, `comments,retweets,likes`, defaults to `0,0,0`).
+Tags: `[name]`, `[handle]`, `[avatar]` (optional, filename in the `tweet-media` storage bucket), `[body]`, `[media]` (optional, comma-separated filenames — only the first `[media]` tag in a block is read), `[time]` (optional, defaults to "now" if omitted), `[likes]` (optional, `comments,retweets,likes`, defaults to `0,0,0`), `[replyingto]` (optional, "Replying to @x" context), `[unavailable]` (replaces every other tag in a block for a deleted/suspended tweet — normally inside `[quote]`).
+
+URLs in body text are linked and shortened for display, and `#hashtags`/`@handles` are highlighted, at render time by `parseTwitterText()` — store plain text.
 
 ### Basic Tweet
 ```
@@ -47,7 +50,7 @@ A tweet block cannot have both `[quote]` and `[reply]` — the parser throws if 
 
 ## Data Model
 
-Defined inline in `src/lib/utils/markdownParser.ts` (this is the canonical type — `src/lib/types/tweet.ts` is an older, unused set of interfaces left over from an earlier design and does not reflect current shapes):
+Parsed tweet shape is defined in `src/lib/utils/markdownParser.ts`; the database row type (`StoredTweet`) is in `src/lib/types/tweet.ts`.
 
 ```typescript
 export interface TweetData {
@@ -60,6 +63,8 @@ export interface TweetData {
   likes?: string;        // "comments,retweets,likes" — use formatLikes() to get numbers
   quote?: TweetData;
   replies?: TweetData[];
+  replyingTo?: string;   // "@handle"
+  unavailable?: string;  // tombstone message for a deleted tweet
 }
 
 export interface ParseResult {
@@ -114,60 +119,77 @@ Two minor, low-risk cleanup items confirmed live but not yet acted on: `tweets` 
 
 ```
 src/
+├── app.html                            # Inline script applies the saved public theme before first paint
+├── app.css                             # Theme variables (dark/light/admin), Chirp font, base body styles
 ├── hooks.server.js                     # Supabase SSR client + safeGetSession per request
 ├── app.d.ts                            # Locals typing (supabase, safeGetSession)
 ├── lib/
+│   ├── theme.ts                        # get/set public theme (data-theme on <html> + localStorage)
+│   ├── actions/portal.ts               # Moves overlays (lightbox, toast) to <body>
 │   ├── components/
-│   │   ├── Navigation.svelte           # Top-level site nav (in root +layout.svelte)
-│   │   ├── FeedNavigation.svelte       # Search / sort / theme controls for the home feed
-│   │   ├── FeaturedTweet.svelte        # Wraps UserTweetDisplay with a "Featured" label
-│   │   ├── TweetDisplay.svelte         # Admin-only preview render (Tailwind, includes raw-JSON debug panel)
-│   │   ├── UserTweetDisplay.svelte     # Public-facing render (dark Twitter-style theme, lightbox, share button)
-│   │   └── TweetCreator.svelte         # Admin create/edit form: markdown editor, paste/upload/avatar handling, sample templates
+│   │   ├── UserTweetDisplay.svelte     # THE tweet renderer — public feed, tweet page, and every admin preview
+│   │   ├── TweetMedia.svelte           # Twitter-style media grid (1 / 2 / 3 / 4 layouts, "+N" overflow)
+│   │   ├── MediaLightbox.svelte        # Full-screen image viewer (arrows/Escape, portaled to <body>)
+│   │   ├── TweetAvatar.svelte          # Avatar image with initials fallback when the file is missing
+│   │   ├── FeaturedTweet.svelte        # Wraps UserTweetDisplay with the "Featured" label and glow
+│   │   ├── FeedNavigation.svelte       # Theme toggle, sort toggle, debounced search for the home feed
+│   │   ├── Navigation.svelte           # Admin top nav (rendered by admin/+layout.svelte)
+│   │   └── TweetCreator.svelte         # /admin/create: markdown editor, uploads, samples, live preview
 │   ├── utils/
-│   │   ├── markdownParser.ts           # TweetMarkdownParser: parse/generate/validate bracket-tag markdown; slug + likes helpers
-│   │   ├── twitterClipboardParser.ts   # Parses HTML copied from twitter.com/x.com into TweetData-shaped fields; image re-download helper
-│   │   ├── twitterTextParser.js        # Highlights #hashtags/@handles in rendered tweet body HTML
+│   │   ├── markdownParser.ts           # TweetMarkdownParser: parse/generate bracket-tag markdown; slug + likes helpers
+│   │   ├── twitterClipboardParser.ts   # Parses copied X HTML or archiver-script JSON; media download via /admin/media-proxy
+│   │   ├── twitterTextParser.js        # Body text → safe HTML (entity decoding, links, hashtag/handle highlight)
+│   │   ├── media.ts                    # getMediaUrl(), isVideo()
+│   │   ├── tweetAdmin.ts               # deleteTweet(), deleteMediaFiles(), referencedMediaFiles()
 │   │   └── featuredTweet.js            # Featured-tweet rotation: get/set/rotate, 30-day no-repeat history
-│   ├── types/
-│   │   └── tweet.ts                    # UNUSED — superseded by TweetData in markdownParser.ts; safe to remove
+│   ├── types/tweet.ts                  # StoredTweet (a `tweets` row)
 │   └── supabase.js                     # Anon-key Supabase client used by components/routes for data reads/writes
 ├── routes/
-│   ├── +layout.svelte                  # Loads app.css, chirp font, renders Navigation
-│   ├── +page.svelte                    # Home feed: search, sort (newest/oldest/shuffle), theming, featured tweet, pagination
+│   ├── +layout.svelte                  # Loads app.css
+│   ├── +page.svelte                    # Home feed: search, sort (newest/oldest/shuffle), featured tweet, pagination
 │   ├── +error.svelte
 │   ├── [slug]/
-│   │   ├── +page.server.js             # Loads one tweet by slug + full tweet list (for prev/next nav)
-│   │   └── +page.svelte                # Public single-tweet view
+│   │   ├── +page.server.js             # Loads one tweet by slug + its newer/older neighbours' slugs
+│   │   └── +page.svelte                # Public single-tweet view (+ og/twitter link-preview tags)
 │   └── admin/
+│       ├── +layout.svelte              # .admin-shell light theme wrapper + Navigation
 │       ├── +layout.server.js           # Redirects to /admin/login when there's no session (except the login page itself)
-│       ├── +page.svelte                # Admin dashboard (links to create/parse/tweets/featured)
+│       ├── +page.svelte                # Dashboard: counts, recent tweets, links
 │       ├── login/, logout/             # Supabase email+password auth actions
 │       ├── create/+page.svelte         # Uses TweetCreator
-│       ├── parse/+page.svelte          # Paste Twitter/X HTML → TweetCreator-style save, via twitterClipboardParser
+│       ├── parse/+page.svelte          # Import: paste copied X HTML or archiver JSON anywhere on the page
 │       ├── featured/+page.svelte       # Manually set/rotate the featured tweet
-│       ├── edit/[slug]/+page.svelte    # Legacy URL — immediately redirects to /admin/tweets/[slug]/edit
+│       ├── media-proxy/+server.js      # Admin-only fetch of X media (twimg hosts only) for the importer
+│       ├── media-cleanup/+server.js    # Admin-only storage delete (abandoned uploads, deleted tweets)
+│       ├── edit/[slug]/+page.server.js # Legacy URL — 308 redirect to /admin/tweets/[slug]/edit
 │       └── tweets/
-│           ├── +page.svelte            # List all tweets (uses TweetDisplay)
+│           ├── +page.svelte            # List/search all tweets
 │           └── [slug]/
-│               ├── +page.svelte        # Single-tweet admin view (uses TweetDisplay)
-│               └── edit/+page.svelte   # Edit form (own inline markdown editor + TweetDisplay preview)
+│               ├── +page.svelte        # Single-tweet admin view, copy link/markdown, raw markdown
+│               └── edit/+page.svelte   # Edit form + live preview + delete
+tools/tampermonkey/museum-of-twitter-archiver.user.js   # Browser script: 📋 Archive button on x.com → clipboard JSON
 ```
-
-Not present despite sometimes being assumed: `TweetRenderer.svelte`, `TweetEditor.svelte`, `MediaUploader.svelte`, `MarkdownPreview.svelte`, `mediaUpload.ts`, `slugify.ts`, any `ui/` subfolder. If you're looking for "the tweet renderer," it's `TweetDisplay.svelte` (admin) or `UserTweetDisplay.svelte` (public) depending on context.
 
 ## Key Behaviors Worth Knowing
 
-- **Two render paths, one parser**: both display components call `TweetMarkdownParser.parse()` independently and duplicate avatar-initial/media-grid/metrics logic. A rendering fix (e.g. video-file detection) needs to be applied to both `TweetDisplay.svelte` and `UserTweetDisplay.svelte`.
+- **One renderer**: `UserTweetDisplay.svelte` renders tweets everywhere (public and admin previews); the admin-only duplicate `TweetDisplay.svelte` was removed.
+- **Slugs are permanent**: editing a tweet never changes its slug, since the slug is the public URL people share.
+- **Deleting a tweet** (`deleteTweet()` in `tweetAdmin.ts`) removes its featured-tweet rows first (those foreign keys have no cascade), then the tweet, then every media file it references (main, quote, replies) via `/admin/media-cleanup`.
+- **Uploads happen before saving** in `/admin/parse` and `/admin/create` so previews work; Clear (and re-pasting in `/admin/parse`) deletes uploads that never made it into a saved tweet. Closing the tab mid-draft still leaves them behind.
 - **Featured tweet rotation** runs client-side on every homepage load (`loadFeaturedTweet()` in `+page.svelte`): checks whether today's rotation happened, fetches the current featured tweet, and initializes one if none exists. It is not cached or server-scheduled.
 - **Feed preferences** (sort order, theme) persist in `localStorage`, not per-user in the DB.
 - **Two tweet-import paths**: manual markdown entry (`TweetCreator.svelte`, used by `/admin/create`) and clipboard-HTML import (`twitterClipboardParser.ts`, used by `/admin/parse`). Both end up writing the same `{title, slug, markdown_content}` shape to `tweets`.
-- **Engagement numbers on imported tweets are synthetic**: `twitterClipboardParser.ts` generates plausible-looking like/retweet/comment counts rather than scraping them from the pasted tweet, since the actual counts generally aren't reliably present in what gets copied from twitter.com/x.com.
+- **Engagement numbers**: the Tampermonkey script captures real counts; plain copy/paste doesn't carry them, so that path falls back to plausible synthetic numbers.
 - **Admin writes use the plain anon-key client** (`$lib/supabase.js`), not a session-bound server client — write authorization is enforced by Supabase RLS policies, not by SvelteKit. The page-level session gate in `admin/+layout.server.js` only protects rendering the admin UI.
+
+## Storage policies
+
+`tweet-media` needs SELECT (public), INSERT (public, used by the anon client), and DELETE for `authenticated` only — deletes go through `/admin/media-cleanup`, which acts as the logged-in admin.
 
 ## Known Cleanup Candidates (not yet done — require a live-DB change, so flagged rather than applied)
 - **RLS on `tweets`/`current_featured_tweet`/`featured_tweet_history` is fully open** to the `public` role (see Database Schema above) — the biggest one, since it means the admin login doesn't actually gate writes at the data layer.
 - `tweets.parsed_json` and `tweets.tweet_date` columns (plus the GIN index on `parsed_json`) are live in the DB but unused by any code path.
 - `tweets` has a redundant index: `idx_tweets_slug` duplicates the index the `UNIQUE (slug)` constraint already creates (`tweets_slug_key`).
+- `current_featured_tweet.tweet_id` / `featured_tweet_history.tweet_id` foreign keys could be `ON DELETE CASCADE`; `deleteTweet()` works around it by deleting those rows first.
 
-Already fixed: `src/lib/types/tweet.ts` and `src/lib/components/TweetParser.svelte` (plus the `@tiptap/*` deps it was the sole consumer of) have been deleted; `.sql` now reflects the verified live schema instead of an old, inaccurate one.
+Already fixed: the old unused `types/tweet.ts` and `TweetParser.svelte` (plus the `@tiptap/*` deps) were deleted; `.sql` reflects the verified live schema; `TweetDisplay.svelte` was folded into `UserTweetDisplay.svelte`; the global `!important` theme overrides in `app.css` were removed.

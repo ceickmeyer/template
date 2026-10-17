@@ -134,7 +134,7 @@ export function parseTwitterClipboard(htmlContent: string): ParsedTwitterData | 
     
     // Extract user name and handle more carefully
     const nameElement = doc.querySelector('[data-testid="User-Name"]');
-    let name = nameElement?.textContent?.trim() || '';
+    let name = nameElement ? extractTextWithBetterLineBreaks(nameElement) : '';
     
     // Extract handle - look for @username pattern
     const handleMatch = htmlContent.match(/@[\w]+/);
@@ -264,6 +264,9 @@ function extractTextWithBetterLineBreaks(element: Element): string {
         }
       } else if (el.tagName === 'BR') {
         result += '\n';
+      } else if (el.tagName === 'IMG') {
+        // X renders emoji as <img alt="😥">; without this they vanish.
+        result += el.getAttribute('alt') || '';
       } else {
         // Recursively process other elements
         result += extractTextWithBetterLineBreaks(el);

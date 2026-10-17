@@ -83,10 +83,15 @@ export class TweetMarkdownParser {
    * Parse a tweet block (main, quote, or reply)
    */
   private static parseTweetBlock(content: string, context: string): TweetData {
+    // First, extract and validate nested structures
+    const { mainContent, quote, replies } = this.extractNestedStructures(content, context);
+
     // A deleted/suspended tweet (almost always a quoted one) is represented
     // by [unavailable] instead of the normal name/handle/body fields —
-    // short-circuit before requiring any of those.
-    const unavailable = this.extractTag(content, 'unavailable', context, false);
+    // short-circuit before requiring any of those. Checked on this block's
+    // own content only: checking the whole block also matched an
+    // [unavailable] inside its [quote], blanking the tweet that quotes it.
+    const unavailable = this.extractTag(mainContent, 'unavailable', context, false);
     if (unavailable !== null) {
       return {
         name: '',
@@ -96,9 +101,6 @@ export class TweetMarkdownParser {
       };
     }
 
-    // First, extract and validate nested structures
-    const { mainContent, quote, replies } = this.extractNestedStructures(content, context);
-    
     // Parse the main tweet content
     const tweetData = this.parseBasicTweetData(mainContent, context);
     
@@ -156,9 +158,10 @@ export class TweetMarkdownParser {
    */
   private static parseBasicTweetData(content: string, context: string): TweetData {
     // Extract required fields
-    const name = this.extractTag(content, 'name', context, true);
-    let handle = this.extractTag(content, 'handle', context, true);
-    const body = this.extractTag(content, 'body', context, true);
+    // Required tags throw when missing/empty, so these are always strings.
+    const name = this.extractTag(content, 'name', context, true) as string;
+    let handle = this.extractTag(content, 'handle', context, true) as string;
+    const body = this.extractTag(content, 'body', context, true) as string;
 
     // Auto-add @ to handle if missing
     if (handle && !handle.startsWith('@')) {

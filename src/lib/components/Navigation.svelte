@@ -2,137 +2,89 @@
   import { page } from '$app/stores';
   import { enhance } from '$app/forms';
 
-  $: showNavigation = $page.url.pathname.startsWith('/admin') && $page.url.pathname !== '/admin/login';
+  const links = [
+    { href: '/admin/tweets', label: 'Tweets', match: (p: string) => p.startsWith('/admin/tweets') },
+    { href: '/admin/parse', label: 'Import from X', match: (p: string) => p === '/admin/parse' },
+    { href: '/admin/create', label: 'Write markdown', match: (p: string) => p === '/admin/create' },
+    { href: '/admin/featured', label: 'Featured', match: (p: string) => p === '/admin/featured' }
+  ];
+
+  let menuOpen = false;
+  $: pathname = $page.url.pathname;
+  // Close the mobile menu whenever the route changes.
+  $: pathname, (menuOpen = false);
 </script>
 
-{#if showNavigation}
-  <nav class="bg-white border-b border-gray-200 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between h-16">
-        <div class="flex items-center space-x-8">
-          <!-- Logo/Brand -->
-          <div class="flex-shrink-0">
-            <h1 class="text-xl font-bold text-gray-900">Museum of Twitter Admin</h1>
-          </div>
-          
-          <!-- Navigation Links -->
-          <div class="hidden md:flex space-x-8">
-            <a
-              href="/admin/create"
-              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname === '/admin/create' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
-            >
-              Create Tweet (Markdown)
-            </a>
-            
-            <a
-              href="/admin/parse"
-              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname === '/admin/parse' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
-            >
-              Create Tweet (Clipboard)
-            </a>
-            
-            <a
-              href="/admin/tweets"
-              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname.startsWith('/admin/tweets') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
-            >
-              Admin: View/Edit Tweets
-            </a>
-            
-            <a
-              href="/admin/featured"
-              class="px-3 py-2 rounded-md text-sm font-medium {$page.url.pathname === '/admin/featured' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'}"
-            >
-              Featured Tweets
-            </a>
-            
-            <a
-              href="/"
-              class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
-            >
-              Public Feed
-            </a>
-          </div>
-        </div>
-        
-        <!-- Logout -->
-        <div class="hidden md:flex items-center">
-          <form method="POST" action="/admin/logout" use:enhance>
-            <button
-              type="submit"
-              class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-            >
-              Sign out
-            </button>
-          </form>
-        </div>
+<nav class="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur">
+  <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+    <a href="/admin" class="shrink-0 text-base font-bold text-gray-900 hover:text-gray-700">
+      Museum of Twitter <span class="font-normal text-gray-500">Admin</span>
+    </a>
 
-        <!-- Mobile menu button -->
-        <div class="md:hidden flex items-center">
-          <button
-            type="button"
-            class="bg-white rounded-md p-2 inline-flex items-center justify-center text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-            aria-expanded="false"
-            on:click={() => {
-              const menu = document.getElementById('mobile-menu');
-              menu?.classList.toggle('hidden');
-            }}
-          >
-            <span class="sr-only">Open main menu</span>
-            <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
+    <div class="hidden items-center gap-1 md:flex">
+      {#each links as link}
+        <a
+          href={link.href}
+          class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors {link.match(pathname)
+            ? 'bg-blue-50 text-blue-700'
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
+          aria-current={link.match(pathname) ? 'page' : undefined}
+        >
+          {link.label}
+        </a>
+      {/each}
     </div>
 
-    <!-- Mobile menu -->
-    <div class="md:hidden hidden" id="mobile-menu">
-      <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-50 border-t border-gray-200">
-        <a
-          href="/admin/create"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/admin/create' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
-        >
-          Create Tweet (Markdown)
-        </a>
-        
-        <a
-          href="/admin/parse"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/admin/parse' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
-        >
-          Create Tweet (Clipboard)
-        </a>
-        
-        <a
-          href="/admin/tweets"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname.startsWith('/admin/tweets') ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
-        >
-          Admin: View/Edit Tweets
-        </a>
-        
-        <a
-          href="/admin/featured"
-          class="block px-3 py-2 rounded-md text-base font-medium {$page.url.pathname === '/admin/featured' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'}"
-        >
-          Featured Tweets
-        </a>
-        
-        <a
-          href="/"
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-        >
-          Public Feed
-        </a>
-
-        <form method="POST" action="/admin/logout" use:enhance class="mt-1">
-          <button
-            type="submit"
-            class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-          >
-            Sign out
-          </button>
-        </form>
-      </div>
+    <div class="hidden items-center gap-1 md:flex">
+      <a href="/" target="_blank" rel="noopener" class="rounded-md px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+        Public site ↗
+      </a>
+      <form method="POST" action="/admin/logout" use:enhance>
+        <button type="submit" class="rounded-md px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900">
+          Sign out
+        </button>
+      </form>
     </div>
-  </nav>
-{/if}
+
+    <button
+      type="button"
+      class="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 md:hidden"
+      aria-expanded={menuOpen}
+      aria-controls="admin-mobile-menu"
+      aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+      on:click={() => (menuOpen = !menuOpen)}
+    >
+      <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+        {#if menuOpen}
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        {:else}
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        {/if}
+      </svg>
+    </button>
+  </div>
+
+  {#if menuOpen}
+    <div id="admin-mobile-menu" class="space-y-1 border-t border-gray-200 bg-white px-2 py-2 md:hidden">
+      {#each links as link}
+        <a
+          href={link.href}
+          class="block rounded-md px-3 py-2 text-base font-medium {link.match(pathname)
+            ? 'bg-blue-50 text-blue-700'
+            : 'text-gray-700 hover:bg-gray-100'}"
+          aria-current={link.match(pathname) ? 'page' : undefined}
+        >
+          {link.label}
+        </a>
+      {/each}
+      <a href="/" target="_blank" rel="noopener" class="block rounded-md px-3 py-2 text-base text-gray-700 hover:bg-gray-100">
+        Public site ↗
+      </a>
+      <form method="POST" action="/admin/logout" use:enhance>
+        <button type="submit" class="block w-full rounded-md px-3 py-2 text-left text-base text-gray-500 hover:bg-gray-100">
+          Sign out
+        </button>
+      </form>
+    </div>
+  {/if}
+</nav>

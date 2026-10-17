@@ -8,9 +8,13 @@ export const load = async ({ locals, url }) => {
 
   const { session, user } = await locals.safeGetSession();
 
-  if (!session) {
+  if (!session || !user) {
     throw redirect(303, '/admin/login');
   }
 
-  return { session, user };
+  // Only the verified user is sent to the page. Returning the raw session
+  // made SvelteKit serialize session.user, and every read of that property
+  // logs Supabase's "user object from getSession() could be insecure"
+  // warning — that's the repeated message in the dev console.
+  return { user: { id: user.id, email: user.email } };
 };

@@ -1,148 +1,104 @@
-<!-- src/routes/tweets/[slug]/+page.svelte -->
+<!-- src/routes/admin/tweets/[slug]/+page.svelte -->
 <script lang="ts">
   import { page } from '$app/stores';
   import { supabase } from '$lib/supabase.js';
-  import TweetDisplay from '$lib/components/TweetDisplay.svelte';
-  import { onMount } from 'svelte';
+  import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
+  import type { StoredTweet } from '$lib/types/tweet';
 
-  let tweet = null;
+  let tweet: StoredTweet | null = null;
   let loading = true;
   let errorMessage = '';
+  let copied = '';
 
-  // Get slug from URL
-  $: slug = $page.params.slug;
+  // Reload when navigating between tweets without leaving the route.
+  $: loadTweet($page.params.slug ?? '');
 
-  onMount(async () => {
-    await loadTweet();
-  });
-
-  async function loadTweet() {
+  async function loadTweet(slug: string) {
     loading = true;
     errorMessage = '';
 
-    try {
-      const { data, error } = await supabase
-        .from('tweets')
-        .select('*')
-        .eq('slug', slug)
-        .single();
+    const { data, error } = await supabase.from('tweets').select('*').eq('slug', slug).single();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          errorMessage = 'Tweet not found';
-        } else {
-          throw error;
-        }
-        return;
-      }
-
+    if (error) {
+      tweet = null;
+      errorMessage = error.code === 'PGRST116' ? 'Tweet not found' : 'Failed to load tweet';
+      if (error.code !== 'PGRST116') console.error('Error loading tweet:', error);
+    } else {
       tweet = data;
+    }
+    loading = false;
+  }
 
-    } catch (error) {
-      console.error('Error loading tweet:', error);
-      errorMessage = 'Failed to load tweet';
-    } finally {
-      loading = false;
+  async function copy(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      copied = label;
+      setTimeout(() => (copied = ''), 2000);
+    } catch (err) {
+      console.error('Copy failed:', err);
     }
   }
 </script>
 
 <svelte:head>
-  <title>{tweet ? tweet.title : 'Tweet'}</title>
-  {#if tweet}
-    <meta name="description" content={tweet.title} />
-  {/if}
+  <title>{tweet ? tweet.title : 'Tweet'} — Museum of Twitter Admin</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-2xl mx-auto">
-    
-    {#if loading}
-      <div class="text-center">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p class="mt-2 text-sm text-gray-600">Loading tweet...</p>
+<div class="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+  {#if loading}
+    <div class="py-12 text-center">
+      <div class="inline-block h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+      <p class="mt-2 text-sm text-gray-600">Loading tweet…</p>
+    </div>
+  {:else if !tweet}
+    <div class="rounded-md border border-red-200 bg-red-50 p-4">
+      <p class="text-sm text-red-800">{errorMessage}</p>
+      <a href="/admin/tweets" class="mt-3 inline-block text-sm text-red-700 hover:text-red-900">← Back to tweets</a>
+    </div>
+  {:else}
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div class="min-w-0">
+        <a href="/admin/tweets" class="text-sm text-blue-600 hover:text-blue-800">← All tweets</a>
+        <h1 class="mt-1 truncate text-2xl font-bold">{tweet.title}</h1>
+        <p class="mt-1 text-sm text-gray-500">Created {new Date(tweet.created_at).toLocaleDateString()}</p>
       </div>
-    {:else if errorMessage}
-      <div class="text-center">
-        <div class="rounded-md bg-red-50 p-4 mb-6">
-          <p class="text-sm text-red-800">{errorMessage}</p>
-        </div>
-        <a
-          href="/tweets"
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-        >
-          ← Back to All Tweets
-        </a>
-      </div>
-    {:else if tweet}
-      
-      <!-- Navigation Header -->
-      <div class="mb-6 flex items-center justify-between">
-        <div>
-          <a
-            href="/admin/tweets"
-            class="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-flex items-center"
-          >
-            ← Back to All Tweets
-          </a>
-          <h1 class="text-xl font-bold text-gray-900">{tweet.title}</h1>
-          <p class="text-sm text-gray-500">
-            Created: {new Date(tweet.created_at).toLocaleDateString()}
-          </p>
-        </div>
-        
-        <div class="flex space-x-3">
-          <a
-            href="{tweet.slug}/edit"
-            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-          >
-            Edit Tweet
-          </a>
-        </div>
-      </div>
+      <a href="/admin/tweets/{tweet.slug}/edit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        Edit
+      </a>
+    </div>
 
-      <!-- Tweet Display -->
-      <div class="mb-8">
-        <TweetDisplay {tweet} />
-      </div>
+    <div class="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <UserTweetDisplay {tweet} clickable={false} />
+    </div>
 
-      <!-- Additional Actions -->
-      <div class="bg-white rounded-lg shadow p-4">
-        <h3 class="text-sm font-medium text-gray-900 mb-3">Actions</h3>
-        <div class="flex space-x-3">
-          <a
-            href="{tweet.slug}/edit"
-            class="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-          >
-            Edit Tweet
-          </a>
-          
-          <button
-            type="button"
-            on:click={() => navigator.clipboard?.writeText(tweet.markdown_content)}
-            class="px-3 py-2 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-          >
-            Copy Markdown
-          </button>
-          
-          <button
-            type="button"
-            on:click={() => navigator.clipboard?.writeText(window.location.href)}
-            class="px-3 py-2 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-          >
-            Copy Link
-          </button>
-        </div>
-      </div>
+    <div class="mb-6 flex flex-wrap gap-2">
+      <a
+        href="/{tweet.slug}"
+        target="_blank"
+        rel="noopener"
+        class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+      >
+        Open public page ↗
+      </a>
+      <button
+        type="button"
+        on:click={() => copy(`${$page.url.origin}/${tweet?.slug}`, 'link')}
+        class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+      >
+        {copied === 'link' ? 'Copied!' : 'Copy public link'}
+      </button>
+      <button
+        type="button"
+        on:click={() => copy(tweet?.markdown_content ?? '', 'markdown')}
+        class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+      >
+        {copied === 'markdown' ? 'Copied!' : 'Copy markdown'}
+      </button>
+    </div>
 
-      <!-- Raw Markdown (Debug) -->
-      <details class="mt-6 bg-gray-50 rounded-lg p-4">
-        <summary class="text-sm font-medium text-gray-700 cursor-pointer">
-          View Raw Markdown
-        </summary>
-        <pre class="mt-3 text-xs bg-white p-3 rounded border overflow-x-auto whitespace-pre-wrap font-mono">{tweet.markdown_content}</pre>
-      </details>
-
-    {/if}
-  </div>
+    <details class="rounded-lg border border-gray-200 bg-white p-4">
+      <summary class="cursor-pointer text-sm font-medium text-gray-700">Raw markdown</summary>
+      <pre class="mt-3 overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 font-mono text-xs whitespace-pre-wrap">{tweet.markdown_content}</pre>
+    </details>
+  {/if}
 </div>

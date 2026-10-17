@@ -1,4 +1,4 @@
-<!-- src/routes/parse/+page.svelte -->
+<!-- src/routes/admin/parse/+page.svelte -->
 <script lang="ts">
   import { supabase } from '$lib/supabase.js';
   import {
@@ -6,9 +6,11 @@
     parseArchiverPayload,
     looksLikeArchiverPayload,
     downloadImage,
-    convertToMarkdown
+    convertToMarkdown,
+    type ParsedTwitterData
   } from '$lib/utils/twitterClipboardParser.js';
   import { generateSlug } from '$lib/utils/markdownParser.js';
+  import { deleteMediaFiles } from '$lib/utils/tweetAdmin';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
 
   // Rendered the same way it'll actually look on the site, so you can
@@ -17,7 +19,7 @@
   $: previewTweet = previewMarkdown ? { markdown_content: previewMarkdown, slug: '', title } : null;
 
   let clipboardContent = '';
-  let parsedData = null;
+  let parsedData: ParsedTwitterData | null = null;
   let previewMarkdown = '';
   let title = '';
   let isProcessing = false;
@@ -29,8 +31,19 @@
   let usedArchiverScript = false;
   let downloadWarnings: string[] = [];
 
-  // Handle paste event
+  function errorText(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  // Listens on the whole page: the drop zone is a plain div, and browsers
+  // only deliver paste events to the focused element, so a listener on the
+  // div itself only fired by luck. Pastes into the title/markdown fields
+  // are left alone.
   async function handlePaste(event: ClipboardEvent) {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+    if (isProcessing || isSubmitting) return;
+
     const items = event.clipboardData?.items;
     if (!items) return;
 
@@ -70,7 +83,8 @@
 
     isProcessing = true;
     errorMessage = '';
-    uploadedFiles = [];
+    // Re-pasting over an unsaved paste would otherwise orphan its uploads.
+    await discardUnsavedUploads();
     downloadWarnings = [];
     processingStatus = 'Parsing tweet content...';
 
@@ -109,7 +123,8 @@
 
       // Generate title if not provided
       if (!title) {
-        title = `${parsedData.name} - ${parsedData.body.substring(0, 50)}...`;
+        const snippet = parsedData.body.replace(/\s+/g, ' ').trim();
+        title = `${parsedData.name} - ${snippet.length > 50 ? `${snippet.slice(0, 50)}…` : snippet}`;
       }
 
       // Download and upload avatar if available
@@ -163,7 +178,7 @@
 
     } catch (error) {
       console.error('Processing error:', error);
-      errorMessage = 'Failed to process clipboard content: ' + error.message;
+      errorMessage = 'Failed to process clipboard content: ' + errorText(error);
     } finally {
       isProcessing = false;
     }
@@ -181,44 +196,55 @@
     successMessage = '';
     
     try {
-      // Generate slug
-      const slug = generateSlug(parsedData);
-      
-      const { data, error } = await supabase
-        .from('tweets')
-        .insert([
-          {
-            title: title.trim(),
-            slug: slug,
-            markdown_content: previewMarkdown.trim()
-          }
-        ])
-        .select();
-      
+      const { error } = await supabase.from('tweets').insert([
+        {
+          title: title.trim() || `${parsedData.name} (${parsedData.handle})`,
+          slug: generateSlug(parsedData),
+          markdown_content: previewMarkdown.trim()
+        }
+      ]);
+
       if (error) throw error;
-      
-      successMessage = 'Tweet saved successfully!';
-      
-      // Reset form
-      setTimeout(() => {
-        clipboardContent = '';
-        parsedData = null;
-        previewMarkdown = '';
-        title = '';
-        uploadedFiles = [];
-        processingStatus = '';
-      }, 2000);
-      
+
+      // The uploads now belong to the saved tweet. Reset right away (this
+      // used to happen on a 2s timer, which wiped out a new paste made in
+      // the meantime).
+      uploadedFiles = [];
+      clipboardContent = '';
+      parsedData = null;
+      previewMarkdown = '';
+      title = '';
+      downloadWarnings = [];
+      processingStatus = '';
+      successMessage = 'Tweet saved!';
     } catch (error) {
       console.error('Save error:', error);
-      errorMessage = 'Failed to save tweet: ' + error.message;
+      errorMessage = 'Failed to save tweet: ' + errorText(error);
     } finally {
       isSubmitting = false;
     }
   }
   
-  // Clear everything
-  function clearAll() {
+  // Uploads happen on paste (so the preview can use them), so anything
+  // still listed here was never saved into a tweet and would otherwise be
+  // orphaned in the public bucket. Saving clears the list first.
+  async function discardUnsavedUploads() {
+    const files = uploadedFiles;
+    uploadedFiles = [];
+    try {
+      const { requested, removed } = await deleteMediaFiles(files);
+      if (removed < requested) {
+        console.warn(`Only ${removed} of ${requested} unsaved uploads were deleted — check the tweet-media DELETE policy.`);
+      }
+    } catch (err) {
+      console.error('Failed to clean up unsaved uploads:', err);
+    }
+  }
+
+  $: if (successMessage) setTimeout(() => (successMessage = ''), 4000);
+
+  async function clearAll() {
+    await discardUnsavedUploads();
     clipboardContent = '';
     parsedData = null;
     previewMarkdown = '';
@@ -232,14 +258,16 @@
 </script>
 
 <svelte:head>
-  <title>Parse Twitter Clipboard</title>
+  <title>Import from X — Museum of Twitter Admin</title>
 </svelte:head>
 
-<div class="max-w-6xl mx-auto p-6">
+<svelte:window on:paste={handlePaste} />
+
+<div class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
   <div class="mb-6">
-    <h1 class="text-2xl font-bold mb-2">Parse Twitter Clipboard</h1>
-    <p class="text-gray-600">
-      Copy a tweet from Twitter/X and paste it below to automatically extract and format the content.
+    <h1 class="text-2xl font-bold">Import from X</h1>
+    <p class="mt-1 text-gray-600">
+      Copy a tweet on X (or use the 📋 Archive button from the Tampermonkey script) and paste anywhere on this page.
     </p>
   </div>
   
@@ -261,12 +289,9 @@
       </div>
       
       <div>
-        <label for="clipboard" class="block text-sm font-medium text-gray-700 mb-2">
-          Paste Tweet Content Here
-        </label>
         <div
-          class="w-full h-40 p-3 border-2 border-dashed border-gray-300 rounded-md focus-within:border-blue-500 bg-gray-50"
-          on:paste={handlePaste}
+          class="h-40 w-full rounded-md border-2 border-dashed border-gray-300 bg-white p-3"
+          aria-live="polite"
         >
           <div class="h-full flex items-center justify-center text-gray-500 text-center">
             {#if isProcessing}
@@ -287,8 +312,8 @@
                 <svg class="w-12 h-12 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p class="text-sm">Click here and paste (Ctrl+V) a copied tweet</p>
-                <p class="text-xs mt-1">Make sure to copy the entire tweet from Twitter/X</p>
+                <p class="text-sm">Paste (Ctrl+V / ⌘V) a copied tweet anywhere on this page</p>
+                <p class="mt-1 text-xs">Select from the avatar down to the view count when copying manually</p>
               </div>
             {/if}
           </div>
@@ -300,15 +325,16 @@
           type="button"
           on:click={processClipboard}
           disabled={!clipboardContent || isProcessing}
-          class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          class="rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          title="Re-run parsing on the last paste"
         >
-          {isProcessing ? 'Processing...' : 'Parse Content'}
+          {isProcessing ? 'Processing…' : 'Re-parse'}
         </button>
         
         <button
           type="button"
           on:click={clearAll}
-          class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+          class="rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
         >
           Clear All
         </button>
@@ -388,10 +414,11 @@
     <!-- Preview Section -->
     <div class="space-y-4">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">
+        <label for="generated-markdown" class="block text-sm font-medium text-gray-700 mb-2">
           Generated Markdown
         </label>
         <textarea
+          id="generated-markdown"
           bind:value={previewMarkdown}
           placeholder="Markdown will appear here after processing..."
           rows="15"
@@ -404,7 +431,7 @@
       {#if previewTweet}
         <div>
           <span class="block text-sm font-medium text-gray-700 mb-2">Preview (as it will appear on the site)</span>
-          <div class="rounded-lg p-2" style="background: rgb(0, 0, 0);">
+          <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <UserTweetDisplay tweet={previewTweet} clickable={false} />
           </div>
         </div>
@@ -415,19 +442,17 @@
           type="button"
           on:click={saveTweet}
           disabled={!previewMarkdown || isSubmitting}
-          class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+          class="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isSubmitting ? 'Saving...' : 'Save Tweet'}
+          {isSubmitting ? 'Saving…' : 'Save tweet'}
         </button>
         
         <a
-          href="/tweets"
-          class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+          href="/admin/tweets"
+          class="rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
         >
-          View All Tweets
+          View all tweets
         </a>
-        
-        
       </div>
     </div>
   </div>
@@ -460,11 +485,11 @@
   {/if}
   
   <!-- Instructions -->
-  <div class="mt-8 bg-gray-50 p-4 rounded-lg">
+  <div class="mt-8 rounded-lg border border-gray-200 bg-white p-4">
     <h3 class="text-sm font-medium text-gray-900 mb-2">How to Use</h3>
     <ol class="text-xs text-gray-700 space-y-1 list-decimal list-inside">
       <li>Go to Twitter/X and find the tweet you want to archive</li>
-      <li>Highlight the tweet, beginning at the avatar and ending at views.</li>
+      <li>Highlight the tweet, beginning at the avatar and ending at views, copy it, and paste anywhere on this page.</li>
 
       <li>The system will automatically:
         <ul class="list-disc list-inside ml-4 mt-1 space-y-1">

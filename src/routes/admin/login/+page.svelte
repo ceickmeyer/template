@@ -125,7 +125,7 @@
   }
 
   .field-input {
-    background-color: transparent;
+    background-color: var(--bg-primary, rgb(255, 255, 255));
     border: 1px solid var(--border-color, rgb(47, 51, 54));
     border-radius: 8px;
     color: var(--text-primary, rgb(231, 233, 234));
@@ -147,10 +147,10 @@
   }
 
   .login-btn {
-    background-color: rgb(231, 233, 234);
+    background-color: var(--accent, rgb(29, 155, 240));
     border: none;
     border-radius: 9999px;
-    color: rgb(0, 0, 0);
+    color: rgb(255, 255, 255);
     cursor: pointer;
     font-family: inherit;
     font-size: 15px;

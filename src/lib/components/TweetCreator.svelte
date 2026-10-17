@@ -1,210 +1,193 @@
+<!-- src/lib/components/TweetCreator.svelte -->
 <script lang="ts">
   import { supabase } from '$lib/supabase.js';
   import { TweetMarkdownParser, generateSlug, type ParseResult } from '$lib/utils/markdownParser.js';
-  
+  import { downloadImage } from '$lib/utils/twitterClipboardParser.js';
+  import { deleteMediaFiles } from '$lib/utils/tweetAdmin';
+  import UserTweetDisplay from './UserTweetDisplay.svelte';
+
   let title = '';
-  let markdownContent = ``;
+  let markdownContent = '';
   let mediaUrl = '';
   let avatarUrl = '';
   let isSubmitting = false;
+  let isUploading = false;
   let errorMessage = '';
   let successMessage = '';
+  // Uploaded for this draft but not yet saved in a tweet.
   let uploadedFiles: string[] = [];
-  let pasteSupported = true;
-  let parseResult: ParseResult | null = null;
 
-  // Check if clipboard API is supported
-  $: pasteSupported = typeof navigator !== 'undefined' && 'clipboard' in navigator;
+  $: parseResult = (markdownContent.trim() ? TweetMarkdownParser.parse(markdownContent) : null) as ParseResult | null;
+  $: busy = isSubmitting || isUploading;
 
-  // Parse markdown as user types to show validation errors
-  $: {
-    if (markdownContent.trim()) {
-      parseResult = TweetMarkdownParser.parse(markdownContent);
-    } else {
-      parseResult = null;
+  function errorText(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  // Storage object names: keep it to safe characters (original filenames
+  // used to go in verbatim, spaces and all).
+  function safeName(name: string) {
+    const cleaned = name.normalize('NFKD').replace(/[^\w.-]+/g, '-').replace(/-+/g, '-').replace(/^[-.]+/, '');
+    return cleaned.slice(-80) || 'file';
+  }
+
+  // Ranges of [quote]…[/quote] and [reply]…[/reply] blocks, so main-tweet
+  // tags are found/inserted outside them.
+  function nestedRanges(text: string) {
+    return [...text.matchAll(/\[(quote|reply)\][\s\S]*?\[\/\1\]/gi)].map((m) => [m.index ?? 0, (m.index ?? 0) + m[0].length]);
+  }
+
+  function findMainTag(text: string, tag: string) {
+    const ranges = nestedRanges(text);
+    for (const match of text.matchAll(new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'gi'))) {
+      const start = match.index ?? 0;
+      if (!ranges.some(([a, b]) => start >= a && start < b)) return match;
     }
+    return null;
   }
 
-  // Handle file upload
-  async function handleFileUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files) return;
-
-    const files = Array.from(input.files);
-    await uploadFiles(files);
+  function appendTag(tag: string) {
+    markdownContent = markdownContent.trim() ? `${markdownContent.trim()}\n${tag}` : tag;
   }
 
-  
-  // Handle clipboard paste
-  async function handlePaste(event: ClipboardEvent) {
-    const items = event.clipboardData?.items;
-    if (!items) return;
+  // The parser only reads the first [media] tag, so additional uploads have
+  // to join the existing list — each upload used to add its own tag, and
+  // every file after the first was silently ignored.
+  function addMedia(fileName: string) {
+    const existing = findMainTag(markdownContent, 'media');
+    if (!existing) return appendTag(`[media]${fileName}[/media]`);
 
-    const files: File[] = [];
-    
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      
-      if (item.type.indexOf('image') !== -1) {
-        const file = item.getAsFile();
-        if (file) {
-          files.push(file);
+    const list = existing[1].trim();
+    const start = existing.index ?? 0;
+    markdownContent =
+      markdownContent.slice(0, start) +
+      `[media]${list ? `${list},` : ''}${fileName}[/media]` +
+      markdownContent.slice(start + existing[0].length);
+  }
+
+  function setAvatar(fileName: string) {
+    const existing = findMainTag(markdownContent, 'avatar');
+    if (!existing) return appendTag(`[avatar]${fileName}[/avatar]`);
+
+    const start = existing.index ?? 0;
+    markdownContent =
+      markdownContent.slice(0, start) + `[avatar]${fileName}[/avatar]` + markdownContent.slice(start + existing[0].length);
+  }
+
+  // Square-crops to 400px (displayed at 40px, but enough for retina and the
+  // og:image fallback). Falls back to the original if the image can't be
+  // decoded — the old version never resolved in that case and hung the upload.
+  function resizeImageToSquare(file: File): Promise<File> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      const done = (result: File) => {
+        URL.revokeObjectURL(url);
+        resolve(result);
+      };
+
+      img.onload = () => {
+        const size = Math.min(img.width, img.height);
+        const target = Math.min(size, 400);
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = target;
+        canvas.getContext('2d')?.drawImage(img, (img.width - size) / 2, (img.height - size) / 2, size, size, 0, 0, target, target);
+        canvas.toBlob(
+          (blob) => done(blob ? new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' }) : file),
+          'image/jpeg',
+          0.9
+        );
+      };
+      img.onerror = () => done(file);
+      img.src = url;
+    });
+  }
+
+  async function uploadFiles(files: File[], isAvatar = false) {
+    isUploading = true;
+    errorMessage = '';
+    try {
+      for (const file of files) {
+        try {
+          const processed = isAvatar && file.type.startsWith('image/') ? await resizeImageToSquare(file) : file;
+          const fileName = `${isAvatar ? 'avatar' : 'media'}-${Date.now()}-${safeName(processed.name)}`;
+
+          const { error } = await supabase.storage.from('tweet-media').upload(fileName, processed);
+          if (error) throw error;
+
+          uploadedFiles = [...uploadedFiles, fileName];
+          if (isAvatar) setAvatar(fileName);
+          else addMedia(fileName);
+        } catch (error) {
+          console.error('Upload error:', error);
+          errorMessage = `Failed to upload ${file.name}: ${errorText(error)}`;
         }
       }
+    } finally {
+      isUploading = false;
     }
+  }
+
+  async function handleFileInput(event: Event, isAvatar = false) {
+    const input = event.currentTarget as HTMLInputElement;
+    if (!input.files?.length) return;
+    await uploadFiles(Array.from(input.files), isAvatar);
+    input.value = '';
+  }
+
+  async function handlePaste(event: ClipboardEvent) {
+    const files = Array.from(event.clipboardData?.items ?? [])
+      .filter((item) => item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => !!file);
 
     if (files.length > 0) {
       event.preventDefault();
       await uploadFiles(files);
-      successMessage = `Pasted ${files.length} image(s) from clipboard!`;
+      if (!errorMessage) successMessage = `Pasted ${files.length} image(s) from the clipboard.`;
     }
   }
 
-  // Upload media from URL
-  async function handleMediaUrl() {
-    if (!mediaUrl.trim()) return;
+  // X's media hosts don't allow cross-origin fetches, so those go through
+  // the same /admin/media-proxy the importer uses.
+  async function fetchRemote(url: string): Promise<File> {
+    const host = new URL(url).hostname;
+    if (host.endsWith('twimg.com')) return downloadImage(url);
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
+    const blob = await response.blob();
+    const extension = (blob.type.split('/')[1] || 'bin').replace(/[^\w]/g, '');
+    return new File([blob], `url-${Date.now()}.${extension}`, { type: blob.type });
+  }
+
+  async function handleUrlUpload(isAvatar: boolean) {
+    const url = (isAvatar ? avatarUrl : mediaUrl).trim();
+    if (!url) return;
 
     try {
-      const response = await fetch(mediaUrl);
-      if (!response.ok) throw new Error('Failed to fetch media');
+      const file = await fetchRemote(url);
+      const allowed = isAvatar ? file.type.startsWith('image/') : /^(image|video)\//.test(file.type);
+      if (!allowed) throw new Error(isAvatar ? 'URL must point to an image' : 'URL must point to an image or video');
 
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
-        throw new Error('URL must be an image or video');
-      }
-
-      const blob = await response.blob();
-      const fileName = `url-${Date.now()}.${contentType.split('/')[1]}`;
-      const file = new File([blob], fileName, { type: contentType });
-
-      await uploadFiles([file]);
-      mediaUrl = '';
-      successMessage = 'Media uploaded from URL successfully!';
+      await uploadFiles([file], isAvatar);
+      if (isAvatar) avatarUrl = '';
+      else mediaUrl = '';
+      if (!errorMessage) successMessage = isAvatar ? 'Avatar uploaded.' : 'Media uploaded.';
     } catch (error) {
       console.error('URL upload error:', error);
-      errorMessage = 'Failed to upload from URL: ' + error.message;
+      errorMessage = `Failed to upload from URL: ${errorText(error)}. Some sites block downloads from other origins — download the file and upload it instead.`;
     }
-  }
-
-async function handleAvatarUpload(event) {
-  const input = event.target;
-  if (!input.files) return;
-
-  const files = Array.from(input.files);
-  await uploadFiles(files, true); // true indicates this is an avatar upload
-}
-
-async function resizeImageToSquare(file) {
-  return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    
-    img.onload = () => {
-      // Set canvas to 40x40
-      canvas.width = 100;
-      canvas.height = 100;
-      
-      // Calculate dimensions to crop to square
-      const size = Math.min(img.width, img.height);
-      const x = (img.width - size) / 2;
-      const y = (img.height - size) / 2;
-      
-      // Draw the cropped and resized image
-      ctx?.drawImage(img, x, y, size, size, 0, 0, 100, 100);
-
-      // Convert back to file
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const resizedFile = new File([blob], `avatar-${Date.now()}.jpg`, {
-            type: 'image/jpeg',
-            lastModified: Date.now()
-          });
-          resolve(resizedFile);
-        }
-      }, 'image/jpeg', 0.9);
-    };
-    
-    img.src = URL.createObjectURL(file);
-  });
-}
-
-async function handleAvatarUrl() {
-  if (!avatarUrl.trim()) return;
-
-  try {
-    const response = await fetch(avatarUrl);
-    if (!response.ok) throw new Error('Failed to fetch avatar');
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.startsWith('image/')) {
-      throw new Error('Avatar URL must be an image');
-    }
-
-    const blob = await response.blob();
-    const fileName = `avatar-${Date.now()}.${contentType.split('/')[1]}`;
-    const file = new File([blob], fileName, { type: contentType });
-
-    await uploadFiles([file], true);
-    avatarUrl = '';
-    successMessage = 'Avatar uploaded from URL successfully!';
-  } catch (error) {
-    console.error('Avatar URL upload error:', error);
-    errorMessage = 'Failed to upload avatar from URL: ' + error.message;
-  }
-}
-
-
-// Modify your existing uploadFiles function to handle avatars:
-async function uploadFiles(files, isAvatar = false) {
-  for (const file of files) {
-    try {
-      let processedFile = file;
-      
-      // Resize avatar files to 40x40
-      if (isAvatar && file.type.startsWith('image/')) {
-        processedFile = await resizeImageToSquare(file);
-      }
-      
-      const prefix = isAvatar ? 'avatar' : 'media';
-      const fileName = `${prefix}-${Date.now()}-${processedFile.name}`;
-      
-      const { data, error } = await supabase.storage
-        .from('tweet-media')
-        .upload(fileName, processedFile);
-
-      if (error) throw error;
-
-      uploadedFiles = [...uploadedFiles, fileName];
-      
-      // Add to markdown content
-      if (isAvatar) {
-        insertIntoMarkdown(`[avatar]${fileName}[/avatar]`);
-      } else {
-        insertIntoMarkdown(`[media]${fileName}[/media]`);
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      errorMessage = 'Failed to upload file: ' + file.name;
-    }
-  }
-}
-
-  // Helper function to insert tags into markdown
-  function insertIntoMarkdown(tag: string) {
-    // If there's no content, just add the tag
-    if (!markdownContent.trim()) {
-      markdownContent = tag;
-      return;
-    }
-
-    // Insert at the end of the current content
-    markdownContent = markdownContent.trim() + '\n' + tag;
   }
 
   async function handleSubmit() {
     if (!title.trim() || !markdownContent.trim()) {
       errorMessage = 'Please fill in title and content';
+      return;
+    }
+    const result = TweetMarkdownParser.parse(markdownContent);
+    if (!result.success || !result.data) {
+      errorMessage = result.error || 'Invalid markdown format';
       return;
     }
 
@@ -213,67 +196,59 @@ async function uploadFiles(files, isAvatar = false) {
     successMessage = '';
 
     try {
-      // Parse and validate the markdown
-      const result = TweetMarkdownParser.parse(markdownContent);
-      if (!result.success) {
-        throw new Error(result.error || 'Invalid markdown format');
-      }
-
-      // Generate slug
-      const slug = generateSlug(result.data);
-
-      const { data, error } = await supabase
-        .from('tweets')
-        .insert([
-          {
-            title: title.trim(),
-            slug: slug,
-            markdown_content: markdownContent.trim()
-          }
-        ])
-        .select();
-
+      const { error } = await supabase.from('tweets').insert([
+        { title: title.trim(), slug: generateSlug(result.data), markdown_content: markdownContent.trim() }
+      ]);
       if (error) throw error;
 
-      successMessage = 'Tweet created successfully!';
+      successMessage = 'Tweet created.';
       title = '';
       markdownContent = '';
-      uploadedFiles = [];
-      parseResult = null;
-
+      uploadedFiles = []; // now owned by the saved tweet
     } catch (error) {
-      console.error('Error:', error);
-      errorMessage = error.message || 'Failed to create tweet';
+      console.error('Create error:', error);
+      errorMessage = errorText(error) || 'Failed to create tweet';
     } finally {
       isSubmitting = false;
     }
   }
 
-// Clear the textarea to start fresh
-function clearContent() {
-  markdownContent = '';
-  title = '';
-  parseResult = null;
-}
+  // Discards the draft, including uploads that never made it into a saved tweet.
+  async function clearContent() {
+    const files = uploadedFiles;
+    markdownContent = '';
+    title = '';
+    uploadedFiles = [];
+    errorMessage = '';
+    try {
+      await deleteMediaFiles(files);
+    } catch (error) {
+      console.error('Failed to clean up draft uploads:', error);
+    }
+  }
 
-// Load different sample types
-function loadSimpleSample() {
-  const template = `[name]Steve Jobs[/name]
+  // Replaces the editor content — prepending a sample to existing markdown
+  // (as before) produced two tweets' worth of tags in one block.
+  function loadSample(template: string, sampleTitle: string) {
+    if (markdownContent.trim() && !confirm('Replace the current markdown with this sample?')) return;
+    markdownContent = template;
+    if (!title.trim()) title = sampleTitle;
+  }
+
+  const SAMPLES = [
+    {
+      label: 'Simple',
+      title: 'iPhone Launch - Steve Jobs',
+      template: `[name]Steve Jobs[/name]
 [handle]@stevejobs[/handle]
 [body]Just released the iPhone. Revolutionary device that will change everything.[/body]
 [time]9:19 AM · Jan 9, 2007[/time]
-[likes]1240,892,5830[/likes]`;
-  
-  if (markdownContent.trim()) {
-    markdownContent = template + '\n\n' + markdownContent;
-  } else {
-    markdownContent = template;
-    title = 'iPhone Launch - Steve Jobs';
-  }
-}
-
-function loadQuoteSample() {
-  const template = `[name]Elon Musk[/name]
+[likes]1240,892,5830[/likes]`
+    },
+    {
+      label: 'Quote',
+      title: 'Mars Mission Discussion - Elon Musk',
+      template: `[name]Elon Musk[/name]
 [handle]@elonmusk[/handle]
 [body]Thoughts on this Mars mission timeline?[/body]
 [time]2:15 PM · Mar 15, 2024[/time]
@@ -282,365 +257,214 @@ function loadQuoteSample() {
 [quote]
 [name]NASA[/name]
 [handle]@nasa[/handle]
-[body]We're targeting 2030 for the first crewed mission to Mars. This represents humanity's next giant leap.[/body]
+[body]We're targeting 2030 for the first crewed mission to Mars.[/body]
 [time]1:30 PM · Mar 15, 2024[/time]
-[likes]890,445,3210[/likes]
-[/quote]`;
-  
-  if (markdownContent.trim()) {
-    markdownContent = template + '\n\n' + markdownContent;
-  } else {
-    markdownContent = template;
-    title = 'Mars Mission Discussion - Elon Musk';
-  }
-}
-
-function loadThreadSample() {
-  const template = `[name]Mark Zuckerberg[/name] 
+[/quote]`
+    },
+    {
+      label: 'Thread',
+      title: 'Thread - Mark Zuckerberg',
+      template: `[name]Mark Zuckerberg[/name]
 [handle]@zuck[/handle]
-[body]Excited to share some thoughts on the future of social media and virtual reality. Thread below 👇[/body]
+[body]Some thoughts on the future of social media. Thread below 👇[/body]
 [time]4:20 PM · Jun 12, 2024[/time]
 [likes]1580,892,4320[/likes]
 
 [reply]
-[name]Mark Zuckerberg[/name] 
-[handle]@zuck[/handle]
-[body]1/ The metaverse isn't just about VR headsets. It's about creating shared digital experiences that feel as real as physical ones.[/body]
-[time]4:22 PM · Jun 12, 2024[/time]
-[likes]456,234,1890[/likes]
-[/reply]
-
-[reply]
 [name]Mark Zuckerberg[/name]
 [handle]@zuck[/handle]
-[body]2/ We're seeing incredible progress in haptic feedback, spatial audio, and photorealistic avatars. The future is closer than you think.[/body]
-[time]4:24 PM · Jun 12, 2024[/time]
-[likes]623,198,2456[/likes]
-[/reply]`;
-  
-  if (markdownContent.trim()) {
-    markdownContent = template + '\n\n' + markdownContent;
-  } else {
-    markdownContent = template;
-    title = 'Metaverse Vision Thread - Mark Zuckerberg';
-  }
-}
+[body]1/ It's about creating shared digital experiences.[/body]
+[time]4:22 PM · Jun 12, 2024[/time]
+[likes]456,234,1890[/likes]
+[/reply]`
+    },
+    {
+      label: 'Deleted quote',
+      title: 'Quoting a deleted tweet',
+      template: `[name]Someone[/name]
+[handle]@someone[/handle]
+[body]lol what happened to this[/body]
+[likes]12,3,140[/likes]
 
-function loadMediaSample() {
-  const template = `[name]Tim Cook[/name]
-[handle]@tim_cook[/handle]
-[avatar]avatar-example.jpg[/avatar]
-[body]Behind the scenes at our latest product photoshoot. Innovation meets design. 📸✨[/body]
-[media]photo1.jpg,photo2.jpg,video1.mp4[/media]
-[time]3:45 PM · Today[/time]
-[likes]5240,2890,12450[/likes]`;
-  
-  if (markdownContent.trim()) {
-    markdownContent = template + '\n\n' + markdownContent;
-  } else {
-    markdownContent = template;
-    title = 'Product Photoshoot - Tim Cook';
-  }
-}
+[quote]
+[unavailable]This Tweet is unavailable.[/unavailable]
+[/quote]`
+    }
+  ];
 
-
-  // Clear messages after a few seconds
-  $: if (successMessage) {
-    setTimeout(() => successMessage = '', 5000);
-  }
+  $: if (successMessage) setTimeout(() => (successMessage = ''), 5000);
 </script>
 
-<div class="max-w-6xl mx-auto p-6">
-  <h1 class="text-2xl font-bold mb-6">Recreate Tweet</h1>
-  
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    
-    <!-- Input Section -->
-    <div class="space-y-6">
-      <form on:submit|preventDefault={handleSubmit} class="space-y-6">
-        <div>
-          <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
-            Title (for admin reference)
-          </label>
-          <input
-            id="title"
-            type="text"
-            bind:value={title}
-            placeholder="e.g., Steve Jobs iPhone Launch"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isSubmitting}
-          />
-        </div>
+<div class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+  <h1 class="mb-6 text-2xl font-bold">Write a tweet in markdown</h1>
 
-        <div>
-          <div class="flex justify-between items-center mb-2">
-            <label for="content" class="block text-sm font-medium text-gray-700">
-              Tweet Content (Markdown)
-            </label>
-            <div class="flex space-x-2">
-              <button
-                type="button"
-                on:click={loadSimpleSample}
-                class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-              >
-                Simple Tweet
-              </button>
-              <button
-                type="button"
-                on:click={loadQuoteSample}
-                class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
-              >
-                Quote Tweet
-              </button>
-              <button
-                type="button"
-                on:click={loadThreadSample}
-                class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
-              >
-                Thread
-              </button>
-              <button
-                type="button"
-                on:click={loadMediaSample}
-                class="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
-              >
-                With Media
-              </button>
-              <button
-                type="button"
-                on:click={clearContent}
-                class="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-          <textarea
-            id="content"
-            bind:value={markdownContent}
-            on:paste={handlePaste}
-            placeholder="Start typing or use the sample buttons above..."
-            rows="20"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-            disabled={isSubmitting}
-          ></textarea>
-          {#if pasteSupported}
-            <p class="mt-1 text-xs text-gray-500">
-              💡 Tip: You can paste images directly into the text area above!
-            </p>
-          {/if}
-        </div>
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <form on:submit|preventDefault={handleSubmit} class="space-y-5">
+      <div>
+        <label for="title" class="mb-1 block text-sm font-medium text-gray-700">Title (admin only)</label>
+        <input
+          id="title"
+          type="text"
+          bind:value={title}
+          placeholder="e.g. Steve Jobs iPhone launch"
+          class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          disabled={isSubmitting}
+        />
+      </div>
 
-        <!-- Validation Status -->
-        {#if parseResult}
-          <div class="rounded-lg p-3 {parseResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
-            <div class="flex items-center">
-              {#if parseResult.success}
-                <svg class="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
-                <span class="text-sm text-green-800 font-medium">Valid markdown format</span>
-              {:else}
-                <svg class="w-4 h-4 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <div class="text-sm text-red-800">
-                  <span class="font-medium">Validation Error:</span>
-                  <div class="mt-1">{parseResult.error}</div>
-                </div>
-              {/if}
-            </div>
+      <div>
+        <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <label for="content" class="block text-sm font-medium text-gray-700">Tweet markdown</label>
+          <div class="flex flex-wrap gap-1">
+            {#each SAMPLES as sample}
+              <button
+                type="button"
+                on:click={() => loadSample(sample.template, sample.title)}
+                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                {sample.label}
+              </button>
+            {/each}
+            <button
+              type="button"
+              on:click={clearContent}
+              class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+            >
+              Clear
+            </button>
           </div>
+        </div>
+        <textarea
+          id="content"
+          bind:value={markdownContent}
+          on:paste={handlePaste}
+          placeholder="Start typing, load a sample, or paste an image…"
+          rows="18"
+          class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          disabled={isSubmitting}
+        ></textarea>
+        {#if parseResult && !parseResult.success}
+          <p class="mt-1 text-sm text-red-700">{parseResult.error}</p>
+        {:else}
+          <p class="mt-1 text-xs text-gray-500">Paste an image into the box to upload and attach it.</p>
         {/if}
+      </div>
 
-        <!-- Media Upload Section -->
-        <div class="bg-gray-50 p-4 rounded-lg space-y-4">
-          <h3 class="text-sm font-medium text-gray-900">Media Upload</h3>
-          
-          <!-- File Upload -->
+      <fieldset class="space-y-4 rounded-lg border border-gray-200 bg-white p-4" disabled={busy}>
+        <legend class="px-1 text-sm font-medium text-gray-900">Media</legend>
+
+        <div class="grid gap-4 sm:grid-cols-2">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Upload Files
-            </label>
+            <label for="media-files" class="mb-1 block text-sm text-gray-700">Upload media</label>
             <input
+              id="media-files"
               type="file"
               multiple
               accept="image/*,video/*"
-              on:change={handleFileUpload}
-              class="w-full px-3 py-2 border border-gray-300 rounded-md"
-              disabled={isSubmitting}
+              on:change={(e) => handleFileInput(e)}
+              class="w-full text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm"
             />
           </div>
-
           <div>
-  <label class="block text-sm font-medium text-gray-700 mb-2">
-    Upload Avatar
-  </label>
-  <input
-    type="file"
-    accept="image/*"
-    on:change={handleAvatarUpload}
-    class="w-full px-3 py-2 border border-gray-300 rounded-md"
-    disabled={isSubmitting}
-  />
-</div>
-
-          <!-- Media URL Upload -->
-          <div>
-            <label for="media-url" class="block text-sm font-medium text-gray-700 mb-2">
-              Upload Media via URL
-            </label>
-            <div class="flex space-x-2">
-              <input
-                id="media-url"
-                type="url"
-                bind:value={mediaUrl}
-                placeholder="https://example.com/image.jpg"
-                class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isSubmitting}
-              />
-              <button
-                type="button"
-                on:click={handleMediaUrl}
-                disabled={!mediaUrl.trim() || isSubmitting}
-                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                Upload
-              </button>
-            </div>
+            <label for="avatar-file" class="mb-1 block text-sm text-gray-700">Upload avatar</label>
+            <input
+              id="avatar-file"
+              type="file"
+              accept="image/*"
+              on:change={(e) => handleFileInput(e, true)}
+              class="w-full text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm"
+            />
           </div>
-
-<div>
-  <label for="avatar-url" class="block text-sm font-medium text-gray-700 mb-2">
-    Upload Avatar via URL
-  </label>
-  <div class="flex space-x-2">
-    <input
-      id="avatar-url"
-      type="url"
-      bind:value={avatarUrl}
-      placeholder="https://example.com/avatar.jpg"
-      class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-      disabled={isSubmitting}
-    />
-    <button
-      type="button"
-      on:click={handleAvatarUrl}
-      disabled={!avatarUrl.trim() || isSubmitting}
-      class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-    >
-      Upload
-    </button>
-  </div>
-</div>
-
-          {#if uploadedFiles.length > 0}
-            <div class="mt-2 text-sm text-green-600">
-              <strong>Uploaded files:</strong>
-              <ul class="list-disc list-inside mt-1">
-                {#each uploadedFiles as file}
-                  <li>{file}</li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
         </div>
 
-        <div class="flex space-x-4">
-          <button
-            type="submit"
-            disabled={isSubmitting || !parseResult?.success}
-            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isSubmitting ? 'Creating...' : 'Create Tweet'}
-          </button>
-          
-          <a
-            href="/admin/tweets"
-            class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-          >
-            View All Tweets
-          </a>
+        <div>
+          <label for="media-url" class="mb-1 block text-sm text-gray-700">Media from URL</label>
+          <div class="flex gap-2">
+            <input
+              id="media-url"
+              type="url"
+              bind:value={mediaUrl}
+              placeholder="https://pbs.twimg.com/media/…"
+              class="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <button
+              type="button"
+              on:click={() => handleUrlUpload(false)}
+              disabled={!mediaUrl.trim()}
+              class="rounded-md bg-gray-800 px-3 py-2 text-sm text-white hover:bg-gray-700 disabled:opacity-50"
+            >
+              Add
+            </button>
+          </div>
         </div>
-      </form>
-    </div>
 
-    <!-- Preview Section -->
-    <div class="space-y-4">
-      <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Raw Code Preview</h3>
-        
-        {#if parseResult?.success && parseResult.data}
-          <div class="space-y-4">
-            <!-- Preview content would go here - you can import TweetDisplay component -->
-            <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded">
-              <strong>Parsed Data Preview:</strong>
-              <pre class="mt-2 text-xs overflow-x-auto">{JSON.stringify(parseResult.data, null, 2)}</pre>
-            </div>
+        <div>
+          <label for="avatar-url" class="mb-1 block text-sm text-gray-700">Avatar from URL</label>
+          <div class="flex gap-2">
+            <input
+              id="avatar-url"
+              type="url"
+              bind:value={avatarUrl}
+              placeholder="https://pbs.twimg.com/profile_images/…"
+              class="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <button
+              type="button"
+              on:click={() => handleUrlUpload(true)}
+              disabled={!avatarUrl.trim()}
+              class="rounded-md bg-gray-800 px-3 py-2 text-sm text-white hover:bg-gray-700 disabled:opacity-50"
+            >
+              Set
+            </button>
           </div>
-        {:else if parseResult?.error}
-          <div class="text-sm text-red-600 bg-red-50 p-3 rounded">
-            <strong>Parse Error:</strong>
-            <div class="mt-1">{parseResult.error}</div>
-          </div>
-        {:else}
-          <div class="text-sm text-gray-500 bg-gray-50 p-3 rounded text-center">
-            Start typing to see a preview of your tweet
-          </div>
+        </div>
+
+        {#if isUploading}
+          <p class="text-sm text-gray-600">Uploading…</p>
         {/if}
-      </div>
-    </div>
-  </div>
+        {#if uploadedFiles.length > 0}
+          <p class="text-xs text-gray-500">Uploaded this session: {uploadedFiles.join(', ')}</p>
+        {/if}
+      </fieldset>
 
-  <!-- Messages -->
-  {#if errorMessage}
-    <div class="mt-6 rounded-md bg-red-50 p-4">
-      <p class="text-sm text-red-800">{errorMessage}</p>
-      <button 
-        type="button" 
-        on:click={() => errorMessage = ''}
-        class="text-xs text-red-600 hover:text-red-800 mt-1"
+      {#if errorMessage}
+        <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{errorMessage}</div>
+      {/if}
+      {#if successMessage}
+        <div class="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">{successMessage}</div>
+      {/if}
+
+      <button
+        type="submit"
+        disabled={busy || !title.trim() || !parseResult?.success}
+        class="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Dismiss
+        {isSubmitting ? 'Creating…' : 'Create tweet'}
       </button>
-    </div>
-  {/if}
+    </form>
 
-  {#if successMessage}
-    <div class="mt-6 rounded-md bg-green-50 p-4">
-      <p class="text-sm text-green-800">{successMessage}</p>
-      <button 
-        type="button" 
-        on:click={() => successMessage = ''}
-        class="text-xs text-green-600 hover:text-green-800 mt-1"
-      >
-        Dismiss
-      </button>
-    </div>
-  {/if}
+    <div>
+      <h2 class="mb-2 text-sm font-medium text-gray-700">Preview</h2>
+      {#if parseResult?.success}
+        <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <UserTweetDisplay tweet={{ markdown_content: markdownContent }} clickable={false} />
+        </div>
+      {:else}
+        <div class="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500">
+          {parseResult ? 'Fix the error on the left to see a preview.' : 'Start typing to see a preview.'}
+        </div>
+      {/if}
 
-  <!-- Usage Instructions -->
-  <div class="mt-8 bg-blue-50 p-4 rounded-lg">
-    <h3 class="text-sm font-medium text-blue-900 mb-2">New Markdown Format</h3>
-    <div class="text-xs text-blue-800 space-y-2">
-      <div>
-        <strong>Basic Structure:</strong> Each tweet needs [name], [handle], and [body]. Optional: [avatar], [media], [time], [likes]
-      </div>
-      <div>
-        <strong>Quote Tweets:</strong> Wrap quoted content in [quote]...[/quote] tags
-      </div>
-      <div>
-        <strong>Reply Threads:</strong> Wrap each reply in [reply]...[/reply] tags
-      </div>
-      <div>
-        <strong>Media Files:</strong> Use [media]file1.jpg,file2.png[/media] for multiple files
-      </div>
-      <div>
-        <strong>Validation:</strong> Real-time validation shows errors as you type
-      </div>
-      <div>
-        <strong>Auto-features:</strong> Missing @ in handles and missing time/likes are auto-added
-      </div>
+      <details class="mt-6 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">
+        <summary class="cursor-pointer font-medium">Markdown reference</summary>
+        <ul class="mt-3 list-disc space-y-1 pl-5 text-xs">
+          <li>Required: <code>[name]</code>, <code>[handle]</code>, <code>[body]</code></li>
+          <li>Optional: <code>[avatar]</code>, <code>[media]a.jpg,b.mp4[/media]</code>, <code>[time]</code>, <code>[likes]replies,reposts,likes[/likes]</code>, <code>[replyingto]@handle[/replyingto]</code></li>
+          <li>Quote tweet: wrap a tweet in <code>[quote]…[/quote]</code>; a deleted one is <code>[quote][unavailable]message[/unavailable][/quote]</code></li>
+          <li>Thread: wrap each reply in <code>[reply]…[/reply]</code> (a tweet can have a quote or replies, not both)</li>
+          <li>A missing <code>@</code> on handles, and missing time/likes, are filled in automatically</li>
+        </ul>
+      </details>
     </div>
   </div>
 </div>

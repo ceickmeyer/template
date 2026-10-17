@@ -5,11 +5,13 @@
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
   import FeaturedTweet from '$lib/components/FeaturedTweet.svelte';
   import { getCurrentFeaturedTweet, setFeaturedTweet, rotateFeaturedTweet } from '$lib/utils/featuredTweet.js';
+  import type { StoredTweet } from '$lib/types/tweet';
 
-  let tweets = [];
-  let featuredTweet = null;
+  let tweets: StoredTweet[] = [];
+  let featuredTweet: StoredTweet | null = null;
   let loading = true;
-  let isUpdating = false;
+  // id of the tweet being featured, or 'random' for a rotation
+  let updating: string | null = null;
   let successMessage = '';
   let errorMessage = '';
   let searchTerm = '';
@@ -21,11 +23,7 @@
 
   async function loadTweets() {
     try {
-      const { data, error } = await supabase
-        .from('tweets')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.from('tweets').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       tweets = data || [];
     } catch (error) {
@@ -37,222 +35,145 @@
   }
 
   async function loadFeaturedTweet() {
-    try {
-      featuredTweet = await getCurrentFeaturedTweet();
-    } catch (error) {
-      console.error('Error loading featured tweet:', error);
-    }
+    featuredTweet = await getCurrentFeaturedTweet();
   }
 
   async function makeFeatured(tweetId: string) {
-    isUpdating = true;
+    updating = tweetId;
     errorMessage = '';
     successMessage = '';
 
-    try {
-      const result = await setFeaturedTweet(tweetId);
-      if (result) {
-        featuredTweet = result;
-        successMessage = 'Tweet is now featured!';
-      } else {
-        throw new Error('Failed to set featured tweet');
-      }
-    } catch (error) {
-      console.error('Error setting featured tweet:', error);
+    const result = await setFeaturedTweet(tweetId);
+    if (result) {
+      featuredTweet = result;
+      successMessage = 'Tweet is now featured.';
+    } else {
       errorMessage = 'Failed to set featured tweet';
-    } finally {
-      isUpdating = false;
     }
+    updating = null;
   }
 
   async function rotateRandom() {
-    isUpdating = true;
+    updating = 'random';
     errorMessage = '';
     successMessage = '';
 
-    try {
-      const result = await rotateFeaturedTweet();
-      if (result) {
-        featuredTweet = result;
-        successMessage = 'Rotated to a random unfeatured tweet!';
-      } else {
-        throw new Error('Failed to rotate featured tweet');
-      }
-    } catch (error) {
-      console.error('Error rotating featured tweet:', error);
+    const result = await rotateFeaturedTweet();
+    if (result) {
+      featuredTweet = result;
+      successMessage = 'Rotated to a random tweet.';
+    } else {
       errorMessage = 'Failed to rotate featured tweet';
-    } finally {
-      isUpdating = false;
     }
+    updating = null;
   }
 
-  // Filter tweets based on search
-  $: filteredTweets = tweets.filter(tweet => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      tweet.title.toLowerCase().includes(term) ||
-      tweet.markdown_content.toLowerCase().includes(term)
-    );
-  });
+  $: term = searchTerm.trim().toLowerCase();
+  $: filteredTweets = term
+    ? tweets.filter((t) => t.title.toLowerCase().includes(term) || t.markdown_content.toLowerCase().includes(term))
+    : tweets;
 
-  // Clear messages after timeout
-  $: if (successMessage) {
-    setTimeout(() => successMessage = '', 5000);
-  }
-  $: if (errorMessage) {
-    setTimeout(() => errorMessage = '', 5000);
-  }
+  $: if (successMessage) setTimeout(() => (successMessage = ''), 5000);
 </script>
 
 <svelte:head>
-  <title>Featured Tweet Management - Admin</title>
+  <title>Featured tweet — Museum of Twitter Admin</title>
 </svelte:head>
 
-<div class="max-w-6xl mx-auto p-6">
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900 mb-2">Featured Tweet Management</h1>
-    <p class="text-gray-600">
-      Manage which tweet appears as featured on the main feed. Featured tweets rotate automatically daily at midnight EST.
-    </p>
+<div class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+  <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold">Featured tweet</h1>
+      <p class="mt-1 text-sm text-gray-600">Shown at the top of the public feed. Rotates automatically once a day (UTC).</p>
+    </div>
+    <button
+      type="button"
+      on:click={rotateRandom}
+      disabled={updating !== null}
+      class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+    >
+      {updating === 'random' ? 'Rotating…' : 'Rotate to random'}
+    </button>
   </div>
 
-  <!-- Current Featured Tweet -->
-  <div class="mb-8">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-gray-900">Current Featured Tweet</h2>
-      <button
-        type="button"
-        on:click={rotateRandom}
-        disabled={isUpdating}
-        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-      >
-        {isUpdating ? 'Rotating...' : 'Rotate to Random'}
-      </button>
-    </div>
+  {#if successMessage}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">{successMessage}</div>
+  {/if}
+  {#if errorMessage}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{errorMessage}</div>
+  {/if}
 
+  <section class="mb-10">
+    <h2 class="mb-3 text-sm font-medium text-gray-700">Currently featured</h2>
     {#if featuredTweet}
-      <div class="bg-white rounded-lg shadow-lg p-6">
+      <div class="rounded-lg border border-gray-200 bg-white px-3 pt-4 pb-1">
         <FeaturedTweet tweet={featuredTweet} />
       </div>
     {:else}
-      <div class="bg-gray-50 rounded-lg p-6 text-center">
-        <p class="text-gray-600 mb-4">No featured tweet currently set</p>
-        <button
-          type="button"
-          on:click={rotateRandom}
-          disabled={isUpdating}
-          class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-        >
-          {isUpdating ? 'Setting...' : 'Set Random Featured Tweet'}
-        </button>
+      <div class="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500">
+        No featured tweet is set. Use “Rotate to random” or pick one below.
       </div>
     {/if}
-  </div>
+  </section>
 
-  <!-- Search -->
-  <div class="mb-6">
-    <div class="max-w-md">
-      <label for="search" class="block text-sm font-medium text-gray-700 mb-2">
-        Search Tweets
-      </label>
-      <input
-        id="search"
-        type="text"
-        bind:value={searchTerm}
-        placeholder="Search by title or content..."
-        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
+  <section>
+    <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
+      <h2 class="text-sm font-medium text-gray-700">All tweets ({filteredTweets.length})</h2>
+      <div class="w-full sm:w-64">
+        <label for="search" class="sr-only">Search tweets</label>
+        <input
+          id="search"
+          type="search"
+          bind:value={searchTerm}
+          placeholder="Search…"
+          class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        />
+      </div>
     </div>
-  </div>
 
-  <!-- Messages -->
-  {#if successMessage}
-    <div class="mb-6 rounded-md bg-green-50 p-4">
-      <p class="text-sm text-green-800">{successMessage}</p>
-    </div>
-  {/if}
-
-  {#if errorMessage}
-    <div class="mb-6 rounded-md bg-red-50 p-4">
-      <p class="text-sm text-red-800">{errorMessage}</p>
-    </div>
-  {/if}
-
-  <!-- Tweet List -->
-  {#if loading}
-    <div class="text-center py-8">
-      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      <p class="mt-2 text-sm text-gray-600">Loading tweets...</p>
-    </div>
-  {:else if filteredTweets.length === 0}
-    <div class="text-center py-8">
-      <p class="text-gray-500">No tweets found.</p>
-    </div>
-  {:else}
-    <div class="space-y-4">
-      <h2 class="text-lg font-semibold text-gray-900">
-        All Tweets ({filteredTweets.length})
-      </h2>
-
-      {#each filteredTweets as tweet (tweet.id)}
-        <div class="bg-white rounded-lg shadow border {tweet.id === featuredTweet?.id ? 'border-yellow-300 bg-yellow-50' : ''}">
-          <!-- Tweet Header -->
-          <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <div class="flex-1">
-              <h3 class="text-sm font-medium text-gray-900 truncate">
-                {tweet.title}
-              </h3>
-              <p class="text-xs text-gray-500 mt-1">
-                Created: {new Date(tweet.created_at).toLocaleDateString()}
-                • Slug: <code class="bg-gray-100 px-1 rounded">{tweet.slug}</code>
-              </p>
-            </div>
-
-            <div class="flex items-center space-x-2 ml-4">
-              {#if tweet.id === featuredTweet?.id}
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                  Currently Featured
-                </span>
+    {#if loading}
+      <div class="py-12 text-center">
+        <div class="inline-block h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+      </div>
+    {:else if filteredTweets.length === 0}
+      <p class="py-8 text-center text-sm text-gray-500">No tweets found.</p>
+    {:else}
+      <ul class="space-y-4">
+        {#each filteredTweets as tweet (tweet.id)}
+          {@const isFeatured = tweet.id === featuredTweet?.id}
+          <li class="overflow-hidden rounded-lg border bg-white {isFeatured ? 'border-blue-400 ring-1 ring-blue-400' : 'border-gray-200'}">
+            <div class="flex items-center justify-between gap-4 border-b border-gray-200 bg-gray-50 px-4 py-3">
+              <div class="min-w-0">
+                <h3 class="truncate text-sm font-medium">{tweet.title}</h3>
+                <p class="text-xs text-gray-500">{new Date(tweet.created_at).toLocaleDateString()}</p>
+              </div>
+              {#if isFeatured}
+                <span class="shrink-0 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">Featured</span>
               {:else}
                 <button
                   type="button"
                   on:click={() => makeFeatured(tweet.id)}
-                  disabled={isUpdating}
-                  class="px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200 disabled:opacity-50"
+                  disabled={updating !== null}
+                  class="shrink-0 rounded border border-gray-300 bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                 >
-                  {isUpdating ? 'Setting...' : 'Make Featured'}
+                  {updating === tweet.id ? 'Setting…' : 'Make featured'}
                 </button>
               {/if}
-
-              <a
-                href="/admin/tweets/{tweet.slug}"
-                class="px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200"
-              >
-                View
-              </a>
             </div>
-          </div>
-
-          <!-- Tweet Content -->
-          <div class="p-4">
             <UserTweetDisplay {tweet} clickable={false} />
-          </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
 
-  <!-- Instructions -->
-  <div class="mt-8 bg-blue-50 p-4 rounded-lg">
-    <h3 class="text-sm font-medium text-blue-900 mb-2">How Featured Tweets Work</h3>
-    <ul class="text-xs text-blue-800 space-y-1 list-disc list-inside">
-      <li><strong>Automatic Rotation:</strong> Featured tweets change daily at midnight EST</li>
-      <li><strong>Random Selection:</strong> The system picks unfeatured tweets randomly</li>
-      <li><strong>Manual Override:</strong> Use "Make Featured" to set any tweet as today's featured tweet</li>
-      <li><strong>History Tracking:</strong> Tweets won't be featured again for 30 days</li>
-      <li><strong>Cycle Reset:</strong> When all tweets have been featured, the history resets automatically</li>
-      <li><strong>Feed Position:</strong> Featured tweets appear at the top with a golden highlight</li>
+  <details class="mt-8 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">
+    <summary class="cursor-pointer font-medium">How featuring works</summary>
+    <ul class="mt-3 list-disc space-y-1 pl-5 text-xs">
+      <li>The first public-feed visit each UTC day picks a new random featured tweet.</li>
+      <li>A tweet isn't picked again for 30 days; once every tweet has been featured, that history resets.</li>
+      <li>“Make featured” overrides today's pick immediately.</li>
+      <li>The featured tweet is shown above the feed with a glowing border, and hidden while searching.</li>
     </ul>
-  </div>
+  </details>
 </div>

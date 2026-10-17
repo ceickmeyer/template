@@ -1,25 +1,36 @@
 @import 'tailwindcss';
 
-/* CSS Custom Properties for theming */
+/*
+ * Theme tokens. Public pages default to dark; light mode is opted into via
+ * data-theme="light" on <html> (set before first paint by the inline script
+ * in app.html, toggled from FeedNavigation via $lib/theme). The admin area
+ * always uses the light tokens — see .admin-shell below.
+ *
+ * Components should read these variables directly instead of hardcoding
+ * colors; there used to be a large set of global `[class*="tweet"] ...
+ * !important` overrides here to retrofit theming onto hardcoded colors, and
+ * those also leaked into every Tailwind `border-*` / `text-*` class on the
+ * admin pages.
+ */
 :root {
+  color-scheme: dark;
   --bg-primary: rgb(0, 0, 0);
   --bg-secondary: rgb(22, 24, 28);
   --text-primary: rgb(231, 233, 234);
   --text-secondary: rgb(113, 118, 123);
   --border-color: rgb(47, 51, 54);
   --hover-bg: rgba(231, 233, 234, 0.03);
-  
-  /* Navigation specific */
+  --accent: rgb(29, 155, 240);
+  --accent-hover: rgb(26, 140, 216);
+
   --nav-bg: rgba(0, 0, 0, 0.85);
   --nav-bg-mobile: rgba(0, 0, 0, 0.95);
   --search-bg: rgba(0, 0, 0, 0.5);
   --search-bg-focus: rgba(0, 0, 0, 0.8);
-  
-  /* Featured tweet */
+
   --featured-bg: rgb(0, 0, 0);
   --featured-border: rgb(47, 51, 54);
-  
-  /* Tweet content */
+
   --tweet-name-color: rgb(231, 233, 234);
   --tweet-handle-color: rgb(113, 118, 123);
   --tweet-body-color: rgb(231, 233, 234);
@@ -27,7 +38,33 @@
   --tweet-metrics-color: rgb(113, 118, 123);
 }
 
-/* Twitter Chirp Font Definitions */
+:root[data-theme='light'],
+:root:has(.admin-shell),
+.admin-shell {
+  color-scheme: light;
+  --bg-primary: rgb(255, 255, 255);
+  --bg-secondary: rgb(247, 249, 249);
+  --text-primary: rgb(15, 20, 25);
+  --text-secondary: rgb(83, 100, 113);
+  --border-color: rgb(207, 217, 222);
+  --hover-bg: rgba(15, 20, 25, 0.03);
+
+  --nav-bg: rgba(255, 255, 255, 0.85);
+  --nav-bg-mobile: rgba(255, 255, 255, 0.95);
+  --search-bg: rgba(247, 249, 249, 0.5);
+  --search-bg-focus: rgba(247, 249, 249, 0.8);
+
+  --featured-bg: rgb(255, 255, 255);
+  --featured-border: rgb(207, 217, 222);
+
+  --tweet-name-color: rgb(15, 20, 25);
+  --tweet-handle-color: rgb(83, 100, 113);
+  --tweet-body-color: rgb(15, 20, 25);
+  --tweet-time-color: rgb(83, 100, 113);
+  --tweet-metrics-color: rgb(83, 100, 113);
+}
+
+/* Twitter Chirp font */
 @font-face {
   font-family: 'TwitterChirp';
   src: url('/fonts/Chirp-Light.woff2') format('woff2');
@@ -76,428 +113,46 @@
   font-display: swap;
 }
 
-/* Set Chirp as default font with fallbacks */
 body {
-  font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 20px;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Updated Twitter-specific typography classes with theming */
-.tweet-text {
-  font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 15px;
-  line-height: 20px;
-  font-weight: 400;
-  color: var(--tweet-body-color);
-  transition: color 0.2s ease;
+/* Thin scrollbars on the public site */
+::-webkit-scrollbar {
+  width: 6px;
 }
 
-.tweet-name {
-  font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 20px;
-  color: var(--tweet-name-color);
-  transition: color 0.2s ease;
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
 }
 
-.tweet-handle {
-  font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 20px;
-  color: var(--tweet-handle-color);
-  transition: color 0.2s ease;
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
 }
 
-.tweet-time {
-  font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 20px;
-  color: var(--tweet-time-color);
-  transition: color 0.2s ease;
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
 }
 
-.tweet-metrics {
-  font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 16px;
-  color: var(--tweet-metrics-color);
-  transition: color 0.2s ease;
-}
-
-/* Global theme overrides for all tweet components */
-
-/* Tweet author names - multiple selectors to catch all variations */
-.tweet-name,
-.tweet-author-name,
-[class*="tweet"] .name,
-[class*="tweet"] .author-name {
-  color: var(--tweet-name-color) !important;
-}
-
-/* Tweet handles */
-.tweet-handle,
-.tweet-author-handle,
-[class*="tweet"] .handle,
-[class*="tweet"] .author-handle {
-  color: var(--tweet-handle-color) !important;
-}
-
-/* Tweet body text */
-.tweet-body,
-.tweet-content,
-.tweet-text,
-[class*="tweet"] .body,
-[class*="tweet"] .content {
-  color: var(--tweet-body-color) !important;
-}
-
-/* Tweet timestamps */
-.tweet-time,
-.tweet-timestamp,
-[class*="tweet"] .time,
-[class*="tweet"] .timestamp {
-  color: var(--tweet-time-color) !important;
-}
-
-/* Tweet metrics (likes, retweets, etc.) */
-.tweet-metrics,
-.tweet-stats,
-.tweet-engagement,
-[class*="tweet"] .metrics,
-[class*="tweet"] .stats {
-  color: var(--tweet-metrics-color) !important;
-}
-
-/* Tweet container backgrounds */
-.twitter-tweet,
-.tweet-container,
-.tweet-wrapper,
-[class*="tweet-container"],
-[class*="tweet-wrapper"] {
-  background-color: var(--bg-primary) !important;
-  border-color: var(--border-color) !important;
-}
-
-/* Featured tweet specific styling */
-.featured-tweet,
-.featured-tweet-container {
-  background-color: var(--featured-bg) !important;
-  border-color: var(--featured-border) !important;
-}
-
-.featured-tweet .tweet-name,
-.featured-tweet .tweet-author-name {
-  color: var(--tweet-name-color) !important;
-}
-
-.featured-tweet .tweet-handle,
-.featured-tweet .tweet-author-handle {
-  color: var(--tweet-handle-color) !important;
-}
-
-.featured-tweet .tweet-body,
-.featured-tweet .tweet-content,
-.featured-tweet .tweet-text {
-  color: var(--tweet-body-color) !important;
-}
-
-.featured-tweet .tweet-time,
-.featured-tweet .tweet-timestamp {
-  color: var(--tweet-time-color) !important;
-}
-
-.featured-tweet .tweet-metrics,
-.featured-tweet .tweet-stats {
-  color: var(--tweet-metrics-color) !important;
-}
-/* Quote tweet styling - EXPANDED VERSION */
-.quote-tweet,
-.quoted-tweet {
-  background-color: var(--bg-secondary) !important;
-  border-color: var(--border-color) !important;
-}
-
-.quote-tweet .tweet-name,
-.quoted-tweet .tweet-name,
-.quote-tweet .tweet-author-name,
-.quoted-tweet .tweet-author-name {
-  color: var(--tweet-name-color) !important;
-}
-
-.quote-tweet .tweet-handle,
-.quoted-tweet .tweet-handle,
-.quote-tweet .tweet-author-handle,
-.quoted-tweet .tweet-author-handle {
-  color: var(--tweet-handle-color) !important;
-}
-
-.quote-tweet .tweet-body,
-.quoted-tweet .tweet-body,
-.quote-tweet .tweet-text,
-.quoted-tweet .tweet-text,
-.quote-tweet .tweet-content,
-.quoted-tweet .tweet-content {
-  color: var(--tweet-body-color) !important;
-}
-
-.quote-tweet .tweet-time,
-.quoted-tweet .tweet-time,
-.quote-tweet .tweet-timestamp,
-.quoted-tweet .tweet-timestamp {
-  color: var(--tweet-time-color) !important;
-}
-
-.quote-tweet .tweet-metrics,
-.quoted-tweet .tweet-metrics,
-.quote-tweet .tweet-stats,
-.quoted-tweet .tweet-stats {
-  color: var(--tweet-metrics-color) !important;
-}
-
-/* Reply thread styling - EXPANDED VERSION */
-.reply-tweet,
-.thread-tweet {
-  background-color: var(--bg-primary) !important;
-  border-color: var(--border-color) !important;
-}
-
-.reply-tweet .tweet-name,
-.thread-tweet .tweet-name,
-.reply-tweet .tweet-author-name,
-.thread-tweet .tweet-author-name {
-  color: var(--tweet-name-color) !important;
-}
-
-.reply-tweet .tweet-handle,
-.thread-tweet .tweet-handle,
-.reply-tweet .tweet-author-handle,
-.thread-tweet .tweet-author-handle {
-  color: var(--tweet-handle-color) !important;
-}
-
-.reply-tweet .tweet-body,
-.thread-tweet .tweet-body,
-.reply-tweet .tweet-text,
-.thread-tweet .tweet-text,
-.reply-tweet .tweet-content,
-.thread-tweet .tweet-content {
-  color: var(--tweet-body-color) !important;
-}
-
-.reply-tweet .tweet-time,
-.thread-tweet .tweet-time,
-.reply-tweet .tweet-timestamp,
-.thread-tweet .tweet-timestamp {
-  color: var(--tweet-time-color) !important;
-}
-
-.reply-tweet .tweet-metrics,
-.thread-tweet .tweet-metrics,
-.reply-tweet .tweet-stats,
-.thread-tweet .tweet-stats {
-  color: var(--tweet-metrics-color) !important;
-}
-
-/* More aggressive selectors for nested tweet content */
-[class*="quote"] .tweet-name,
-[class*="quote"] .tweet-author-name,
-[class*="reply"] .tweet-name,
-[class*="reply"] .tweet-author-name {
-  color: var(--tweet-name-color) !important;
-}
-
-[class*="quote"] .tweet-handle,
-[class*="quote"] .tweet-author-handle,
-[class*="reply"] .tweet-handle,
-[class*="reply"] .tweet-author-handle {
-  color: var(--tweet-handle-color) !important;
-}
-
-[class*="quote"] .tweet-body,
-[class*="quote"] .tweet-content,
-[class*="quote"] .tweet-text,
-[class*="reply"] .tweet-body,
-[class*="reply"] .tweet-content,
-[class*="reply"] .tweet-text {
-  color: var(--tweet-body-color) !important;
-}
-
-[class*="quote"] .tweet-time,
-[class*="quote"] .tweet-timestamp,
-[class*="reply"] .tweet-time,
-[class*="reply"] .tweet-timestamp {
-  color: var(--tweet-time-color) !important;
-}
-
-[class*="quote"] .tweet-metrics,
-[class*="quote"] .tweet-stats,
-[class*="reply"] .tweet-metrics,
-[class*="reply"] .tweet-stats {
-  color: var(--tweet-metrics-color) !important;
-}
-
-/* Universal tweet element targeting - catch-all for any missed elements */
-[class*="tweet"] [class*="name"] {
-  color: var(--tweet-name-color) !important;
-}
-
-[class*="tweet"] [class*="handle"] {
-  color: var(--tweet-handle-color) !important;
-}
-
-[class*="tweet"] [class*="body"],
-[class*="tweet"] [class*="content"],
-[class*="tweet"] [class*="text"] {
-  color: var(--tweet-body-color) !important;
-}
-
-[class*="tweet"] [class*="time"],
-[class*="tweet"] [class*="timestamp"] {
-  color: var(--tweet-time-color) !important;
-}
-
-[class*="tweet"] [class*="metric"],
-[class*="tweet"] [class*="stat"] {
-  color: var(--tweet-metrics-color) !important;
-}
-
-/* Deep nested selectors for complex tweet structures */
-.tweet-container .quote-tweet .tweet-body,
-.tweet-container .quoted-tweet .tweet-body,
-.tweet-wrapper .quote-tweet .tweet-content,
-.tweet-wrapper .quoted-tweet .tweet-content {
-  color: var(--tweet-body-color) !important;
-}
-
-.tweet-container .reply-tweet .tweet-body,
-.tweet-container .thread-tweet .tweet-body,
-.tweet-wrapper .reply-tweet .tweet-content,
-.tweet-wrapper .thread-tweet .tweet-content {
-  color: var(--tweet-body-color) !important;
-}
-
-/* Target any remaining hardcoded text elements */
-.tweet-container p,
-.tweet-wrapper p,
-.tweet-content p,
-.tweet-body p {
-  color: var(--tweet-body-color) !important;
-}
-
-.tweet-container span,
-.tweet-wrapper span,
-.tweet-content span {
-  color: inherit !important;
-}
-
-/* General text elements that might be missed */
-.twitter-text,
-.tweet-content p,
-.tweet-content span {
-  color: var(--tweet-body-color) !important;
-}
-
-/* Ensure all text in tweet components uses theme colors */
-[class*="tweet"] * {
-  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
-}
-
-/* Override any hardcoded Twitter blue text that should be themed */
-.twitter-handle,
-.tweet-mention,
-.tweet-hashtag {
-  color: rgb(29, 155, 240) !important; /* Keep Twitter blue for links */
-}
-
-/* Main container backgrounds */
-.twitter-feed,
-.tweet-page,
-.tweet-detail {
-  background-color: var(--bg-primary) !important;
-}
-
-/* Navigation and header elements */
-.twitter-header,
-.feed-header,
-.tweet-header {
-  background-color: var(--nav-bg) !important;
-  border-color: var(--border-color) !important;
-}
-
-.twitter-title,
-.feed-title {
-  color: var(--text-primary) !important;
-}
-
-/* Any remaining text that should be themed */
-.secondary-text,
-.muted-text,
-.subtitle {
-  color: var(--text-secondary) !important;
-}
-
-.primary-text,
-.main-text {
-  color: var(--text-primary) !important;
-}
-
-/* Hover states */
-.twitter-tweet:hover,
-.tweet-container:hover {
-  background-color: var(--hover-bg) !important;
-}
-
-/* Borders */
-.twitter-border,
-.tweet-border,
-[class*="border"] {
-  border-color: var(--border-color) !important;
-}
-
-/* For individual tweet pages (slug routes) */
-.tweet-detail-container,
-.single-tweet-view {
-  background-color: var(--bg-primary) !important;
-  color: var(--text-primary) !important;
-}
-
-/* Navigation buttons and links in tweet pages */
-.tweet-nav,
-.tweet-navigation {
-  background-color: var(--bg-primary) !important;
-  border-color: var(--border-color) !important;
-}
-
-.tweet-nav a,
-.tweet-navigation a {
-  color: var(--text-primary) !important;
-}
-
-.tweet-nav a:hover,
-.tweet-navigation a:hover {
-  background-color: var(--hover-bg) !important;
-}
-
-/* Media elements */
-.tweet-media-container {
-  border-color: var(--border-color) !important;
-}
-
-/* Ensure proper contrast for accessibility */
 @media (prefers-contrast: high) {
   :root {
     --text-primary: rgb(255, 255, 255);
     --text-secondary: rgb(200, 200, 200);
   }
+
+  :root[data-theme='light'] {
+    --text-primary: rgb(0, 0, 0);
+    --text-secondary: rgb(50, 50, 50);
+  }
 }
 
-/* Print styles */
 @media print {
   * {
     background-color: white !important;

@@ -1,18 +1,20 @@
 <!-- src/lib/components/FeedNavigation.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  
+  import { getTheme, setTheme, type Theme } from '$lib/theme';
+
   export let tweets: any[] = [];
   export let searchTerm: string = '';
-  
+  export let sortOrder: 'newest' | 'oldest' | 'shuffle' = 'newest';
+
   const dispatch = createEventDispatcher<{
     search: { searchTerm: string };
     sort: { sortOrder: 'newest' | 'oldest' | 'shuffle' };
-    themeToggle: { theme: 'dark' | 'light' };
   }>();
-  
-  let sortOrder: 'newest' | 'oldest' | 'shuffle' = 'newest';
-  let theme: 'dark' | 'light' = 'dark';
+
+  let theme: Theme = 'dark';
+  const SEARCH_DEBOUNCE_MS = 300;
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let isSearchExpanded = false;
   let searchInput: HTMLInputElement;
   let isMobile = false;
@@ -25,58 +27,28 @@
     
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
-    // Load saved preferences
-    loadPreferences();
-    
+    theme = getTheme();
+
     return () => {
       window.removeEventListener('resize', checkMobile);
+      clearTimeout(searchTimer);
     };
   });
-  
-  function loadPreferences() {
-    if (typeof window === 'undefined') return;
-    
-    const savedSortOrder = localStorage.getItem('feed-sort-order') as 'newest' | 'oldest' | 'shuffle';
-    const savedTheme = localStorage.getItem('feed-theme') as 'dark' | 'light';
-    
-    if (savedSortOrder) {
-      sortOrder = savedSortOrder;
-    }
-    
-    if (savedTheme) {
-      theme = savedTheme;
-    }
-  }
-  
-  function savePreferences() {
-    if (typeof window === 'undefined') return;
-    
-    localStorage.setItem('feed-sort-order', sortOrder);
-    localStorage.setItem('feed-theme', theme);
-  }
-  
+
   function handleSortToggle() {
-    if (sortOrder === 'newest') {
-      sortOrder = 'oldest';
-    } else if (sortOrder === 'oldest') {
-      sortOrder = 'shuffle';
-    } else {
-      sortOrder = 'newest';
-    }
-    
-    savePreferences();
-    dispatch('sort', { sortOrder });
+    const next = sortOrder === 'newest' ? 'oldest' : sortOrder === 'oldest' ? 'shuffle' : 'newest';
+    dispatch('sort', { sortOrder: next });
   }
-  
+
   function handleThemeToggle() {
     theme = theme === 'dark' ? 'light' : 'dark';
-    savePreferences();
-    dispatch('themeToggle', { theme });
+    setTheme(theme);
   }
-  
+
+  // Debounced: every keystroke used to fire its own database query.
   function handleSearchInput() {
-    dispatch('search', { searchTerm });
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => dispatch('search', { searchTerm: searchTerm.trim() }), SEARCH_DEBOUNCE_MS);
   }
   
   function handleSearchExpand() {
@@ -95,8 +67,9 @@
   }
   
   function clearSearch() {
+    clearTimeout(searchTimer);
     searchTerm = '';
-    handleSearchInput();
+    dispatch('search', { searchTerm: '' });
     if (isMobile) {
       isSearchExpanded = false;
     }
@@ -119,6 +92,7 @@
         class="feed-nav-button"
         on:click={handleThemeToggle}
         title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       >
         {#if theme === 'dark'}
           <!-- Sun icon for light mode -->
@@ -138,6 +112,7 @@
         type="button"
         class="feed-nav-button"
         on:click={handleSortToggle}
+        aria-label={sortOrder === 'shuffle' ? 'Sort: shuffled' : sortOrder === 'newest' ? 'Sort: newest first' : 'Sort: oldest first'}
         title={sortOrder === 'shuffle' ? 'Shuffle mode - click for chronological' : sortOrder === 'newest' ? 'Newest first - click for oldest first' : 'Oldest first - click for shuffle'}
       >
         {#if sortOrder === 'shuffle'}
@@ -172,6 +147,7 @@
               bind:value={searchTerm}
               type="text"
               placeholder="Search tweets..."
+              aria-label="Search tweets"
               class="feed-search-input"
               on:input={handleSearchInput}
               on:blur={handleSearchCollapse}
@@ -181,6 +157,7 @@
                 type="button"
                 class="feed-search-clear"
                 on:click={clearSearch}
+                aria-label="Clear search"
               >
                 <svg class="feed-nav-icon-small" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -194,6 +171,7 @@
             class="feed-nav-button"
             on:click={handleSearchExpand}
             title="Search tweets"
+            aria-label="Search tweets"
           >
             <svg class="feed-nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -211,6 +189,7 @@
               bind:value={searchTerm}
               type="text"
               placeholder="Search tweets..."
+              aria-label="Search tweets"
               class="feed-search-input"
               on:input={handleSearchInput}
             />
@@ -219,6 +198,7 @@
                 type="button"
                 class="feed-search-clear"
                 on:click={clearSearch}
+                aria-label="Clear search"
               >
                 <svg class="feed-nav-icon-small" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

@@ -4,13 +4,11 @@ import { TweetMarkdownParser } from '$lib/utils/markdownParser.js';
 import { error, isHttpError } from '@sveltejs/kit';
 
 export async function load({ params }) {
-  const { slug } = params;
-
   try {
     const { data: tweet, error: fetchError } = await supabase
       .from('tweets')
       .select('*')
-      .eq('slug', slug)
+      .eq('slug', params.slug)
       .single();
 
     if (fetchError) {
@@ -20,31 +18,36 @@ export async function load({ params }) {
       throw error(500, 'Failed to load tweet');
     }
 
-    // Parse tweet data server-side
     const parseResult = TweetMarkdownParser.parse(tweet.markdown_content);
     const parsedTweetData = parseResult.success ? parseResult.data : null;
 
-    // Get all tweets for navigation
-    const { data: allTweets, error: allTweetsError } = await supabase
-      .from('tweets')
-      .select('id, slug, title, created_at')
-      .order('created_at', { ascending: false });
-
-    if (allTweetsError) {
-      console.error('Error loading all tweets:', allTweetsError);
-    }
-
-    const currentIndex = allTweets ? allTweets.findIndex(t => t.slug === tweet.slug) : -1;
+    // Just the two neighbours (feed order is newest first, so "previous" is
+    // the next-newer tweet) instead of fetching every tweet on every view.
+    const [newer, older] = await Promise.all([
+      supabase
+        .from('tweets')
+        .select('slug')
+        .gt('created_at', tweet.created_at)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('tweets')
+        .select('slug')
+        .lt('created_at', tweet.created_at)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ]);
 
     return {
       tweet,
       parsedTweetData,
-      allTweets: allTweets || [],
-      currentIndex
+      previousSlug: newer.data?.slug ?? null,
+      nextSlug: older.data?.slug ?? null
     };
-
   } catch (err) {
-    if (isHttpError(err)) throw err; // re-throw HttpErrors (e.g. 404) unchanged
+    if (isHttpError(err)) throw err;
     console.error('Server load error:', err);
     throw error(500, 'Failed to load tweet');
   }

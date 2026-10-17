@@ -6,17 +6,17 @@ import { supabase } from '$lib/supabase.js';
  */
 export async function getCurrentFeaturedTweet() {
   try {
+    // Newest row rather than .single(): visitors' browsers run the daily
+    // rotation, so two at once can briefly leave two rows, and .single()
+    // erroring on that made the page rotate yet again.
     const { data, error } = await supabase
       .from('current_featured_tweet')
-      .select(`
-        *,
-        tweets (*)
-      `)
-      .single();
+      .select('*, tweets (*)')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
-      throw error;
-    }
+    if (error) throw error;
 
     return data?.tweets || null;
   } catch (error) {
@@ -118,6 +118,7 @@ export async function rotateFeaturedTweet() {
 
 /**
  * Manually set a tweet as featured
+ * @param {string} tweetId
  */
 export async function setFeaturedTweet(tweetId) {
   try {
@@ -172,11 +173,11 @@ export async function checkAndRotateDaily() {
     const { data: current, error } = await supabase
       .from('current_featured_tweet')
       .select('featured_since')
-      .single();
+      .order('featured_since', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
-      throw error;
-    }
+    if (error) throw error;
 
     const today = new Date().toISOString().split('T')[0];
 

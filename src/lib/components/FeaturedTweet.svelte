@@ -60,12 +60,8 @@
       0 0 6px rgba(255, 0, 255, 0.4),
       0 4px 20px rgba(0, 0, 0, 0.1);
     
-    /* Updated background gradient to use theme variables */
-    background: linear-gradient(180deg, 
-      var(--featured-bg) 0%, 
-      var(--featured-bg) 100%
-    );
-    
+    background-color: var(--featured-bg);
+
     transition: all 0.3s ease;
   }
 
@@ -81,96 +77,26 @@
     transform: translateY(-1px);
   }
 
-  /* Ensure the inner tweet display has proper styling with theme variables */
-  .featured-tweet-content :global(.tweet-container) {
-    background: var(--featured-bg);
-    backdrop-filter: blur(8px);
-    border: none;
-    transition: background-color 0.2s ease;
-  }
-
-  .featured-tweet-content :global(.tweet-container:hover) {
-    background: var(--featured-bg);
-    filter: brightness(1.05);
-  }
-
-  /* Apply theme colors to all text elements within featured tweet */
-  .featured-tweet-content :global(.tweet-name),
-  .featured-tweet-content :global(.tweet-author-name) {
-    color: var(--tweet-name-color) !important;
-  }
-
-  .featured-tweet-content :global(.tweet-handle),
-  .featured-tweet-content :global(.tweet-author-handle) {
-    color: var(--tweet-handle-color) !important;
-  }
-
-  .featured-tweet-content :global(.tweet-body),
-  .featured-tweet-content :global(.tweet-content),
-  .featured-tweet-content :global(.tweet-text) {
-    color: var(--tweet-body-color) !important;
-  }
-
-  .featured-tweet-content :global(.tweet-time),
-  .featured-tweet-content :global(.tweet-timestamp) {
-    color: var(--tweet-time-color) !important;
-  }
-
-  .featured-tweet-content :global(.tweet-metrics),
-  .featured-tweet-content :global(.tweet-stats) {
-    color: var(--tweet-metrics-color) !important;
-  }
-
-  /* Quote tweet styling within featured tweet */
-  .featured-tweet-content :global(.quote-tweet),
-  .featured-tweet-content :global(.quoted-tweet) {
-    background-color: var(--bg-secondary) !important;
-    border-color: var(--border-color) !important;
-  }
-
-  /* Reply tweet styling within featured tweet */
-  .featured-tweet-content :global(.reply-tweet),
-  .featured-tweet-content :global(.thread-tweet) {
-    background-color: var(--featured-bg) !important;
-    border-color: var(--border-color) !important;
-  }
-
-  /* Responsive adjustments */
-  /* Accessibility */
   @media (prefers-reduced-motion: reduce) {
     .featured-tweet-content {
       transition: none;
     }
-    
+
     .featured-tweet-content:hover {
       transform: none;
     }
   }
 
-  /* High contrast mode */
   @media (prefers-contrast: high) {
-    .featured-badge {
+    .featured-tweet-label {
       background: rgb(255, 255, 255);
       color: rgb(0, 0, 0);
       border: 2px solid rgb(255, 212, 0);
     }
-    
+
     .featured-tweet-content {
       border: 2px solid rgb(255, 212, 0);
       box-shadow: none;
-    }
-  }
-
-  /* Dark/Light theme specific adjustments */
-  @media (prefers-color-scheme: light) {
-    .featured-tweet-content:hover {
-      box-shadow: 
-        0 0 8px rgba(255, 0, 128, 1.0),
-        0 0 8px rgba(128, 255, 0, 0.8),
-        0 0 8px rgba(0, 128, 255, 0.8),
-        0 0 8px rgba(255, 128, 0, 0.8),
-        0 0 8px rgba(255, 0, 255, 0.6),
-        0 6px 25px rgba(0, 0, 0, 0.25); /* Slightly stronger shadow for light mode */
     }
   }
 </style>

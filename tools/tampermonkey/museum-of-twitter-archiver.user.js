@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Museum of Twitter Archiver
 // @namespace    museum-of-twitter-archiver
-// @version      1.1.0
+// @version      1.3.0
 // @description  Adds an "Archive" button to tweets on x.com/twitter.com that copies clean, structured tweet data (real engagement counts, video URLs, quoted tweets including deleted ones, and reply-to context) to the clipboard for pasting into the admin importer.
 // @match        https://twitter.com/*
 // @match        https://x.com/*
@@ -86,6 +86,37 @@
       body = body.replace(u, '').trim();
     }
     return body.trim();
+  }
+
+  // X renders emoji as <img alt="😥"> inside tweet text and display names,
+  // and textContent skips images entirely — so every emoji was dropped.
+  // Walks the text instead: emoji images contribute their alt text, <br>
+  // becomes a newline, and a link's trailing "…" (X truncates long URLs
+  // visually but keeps the full URL in hidden spans) is removed.
+  function richText(el) {
+    if (!el) return '';
+    let out = '';
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        out += node.textContent;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.tagName === 'IMG') out += node.getAttribute('alt') || '';
+        else if (node.tagName === 'BR') out += '\n';
+        else if (node.tagName === 'A') {
+          const text = richText(node);
+          out += /^https?:\/\//.test(text) ? text.replace(/…$/, '') : text;
+        } else out += richText(node);
+      }
+    }
+    return out;
+  }
+
+  // Timeline cards show a short relative label in <time> ("5h", "Jul 15");
+  // only a tweet's own page shows the full "3:58 PM · Jul 15, 2024". The
+  // datetime attribute always has the exact timestamp, so build from that.
+  function timeFromElement(timeEl) {
+    const iso = timeEl?.getAttribute('datetime');
+    return (iso && formatTime(iso)) || timeEl?.textContent?.trim() || '';
   }
 
   function formatTime(createdAt) {
@@ -268,7 +299,7 @@
     if (!container) return undefined;
 
     const nameBlock = container.querySelector('[data-testid="User-Name"]');
-    const name = nameBlock?.querySelector('span')?.textContent?.trim();
+    const name = richText(nameBlock?.querySelector('span')).trim();
     const authorInfo = nameBlock?.parentElement;
     const handleMatch = authorInfo?.textContent?.match(/@\w+/);
 
@@ -284,10 +315,10 @@
     return {
       name: name || 'Unknown User',
       handle: handleMatch ? handleMatch[0] : '@unknown',
-      body: bodyEl?.textContent?.trim() || '',
+      body: richText(bodyEl).trim(),
       avatarUrl: upgradeAvatar(avatarImg?.getAttribute('src')),
       mediaUrls: mediaImgs.map(img => img.getAttribute('src')).filter(Boolean),
-      time: timeEl?.textContent?.trim() || ''
+      time: timeFromElement(timeEl)
     };
   }
 
@@ -324,7 +355,7 @@
 
     const nameBlock = firstOutsideQuote('[data-testid="User-Name"]');
     const handle = extractHandle(nameBlock);
-    const name = nameBlock?.querySelector('span')?.textContent?.trim();
+    const name = richText(nameBlock?.querySelector('span')).trim();
 
     const avatarImg = firstOutsideQuote('[data-testid="Tweet-User-Avatar"] img');
     const bodyEl = firstOutsideQuote('[data-testid="tweetText"]');
@@ -342,11 +373,11 @@
       version: 1,
       name: name || 'Unknown User',
       handle: handle || '@unknown',
-      body: bodyEl?.textContent?.trim() || '',
+      body: richText(bodyEl).trim(),
       avatarUrl: upgradeAvatar(avatarImg?.getAttribute('src')),
       quote: extractQuoteFromDom(quoteContainer),
       mediaUrls: mediaImgs.map(img => img.getAttribute('src')).filter(Boolean),
-      time: timeEl?.textContent?.trim() || '',
+      time: timeFromElement(timeEl),
       counts: extractCountsFromActionBar(actionBar),
       tweetUrl,
       capturedVia: 'dom'

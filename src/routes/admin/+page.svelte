@@ -1,99 +1,70 @@
 <!-- src/routes/admin/+page.svelte -->
 <script lang="ts">
-  // Admin dashboard/landing page
+  import { onMount } from 'svelte';
+  import { supabase } from '$lib/supabase.js';
+  import { getCurrentFeaturedTweet } from '$lib/utils/featuredTweet.js';
+  import type { StoredTweet } from '$lib/types/tweet';
+
+  let total: number | null = null;
+  let recent: Pick<StoredTweet, 'id' | 'title' | 'slug' | 'created_at'>[] = [];
+  let featured: StoredTweet | null = null;
+
+  onMount(async () => {
+    const [{ count }, { data }, current] = await Promise.all([
+      supabase.from('tweets').select('id', { count: 'exact', head: true }),
+      supabase.from('tweets').select('id, title, slug, created_at').order('created_at', { ascending: false }).limit(5),
+      getCurrentFeaturedTweet()
+    ]);
+    total = count;
+    recent = data ?? [];
+    featured = current;
+  });
+
+  const actions = [
+    { href: '/admin/parse', title: 'Import from X', text: 'Paste a copied tweet (or the Tampermonkey archive JSON) and save it with its media.' },
+    { href: '/admin/create', title: 'Write markdown', text: 'Build a tweet by hand with the markdown format, quotes, threads and uploads.' },
+    { href: '/admin/tweets', title: 'Manage tweets', text: 'Search, preview, edit and delete archived tweets.' },
+    { href: '/admin/featured', title: 'Featured tweet', text: 'Pick which tweet is pinned at the top of the public feed.' }
+  ];
 </script>
 
 <svelte:head>
-  <title>Museum of Twitter - Admin</title>
+  <title>Museum of Twitter Admin</title>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto p-6">
-  <div class="mb-8">
-    <h1 class="text-3xl font-bold text-gray-900 mb-2">Museum of Twitter Admin</h1>
-    <p class="text-gray-600">Manage and create your tweet archives</p>
+<div class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+  <h1 class="text-2xl font-bold">Dashboard</h1>
+  <p class="mt-1 text-gray-600">
+    {#if total === null}
+      &nbsp;
+    {:else}
+      {total} tweet{total === 1 ? '' : 's'} archived{featured ? ` · featuring “${featured.title}”` : ''}
+    {/if}
+  </p>
+
+  <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    {#each actions as action}
+      <a href={action.href} class="rounded-lg border border-gray-200 bg-white p-5 transition-colors hover:border-blue-300 hover:bg-blue-50/40">
+        <h2 class="font-semibold">{action.title}</h2>
+        <p class="mt-1 text-sm text-gray-600">{action.text}</p>
+      </a>
+    {/each}
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-    <!-- Create Tweet -->
-    <a
-      href="/admin/create"
-      class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-blue-500"
-    >
-      <div class="flex items-center mb-4">
-        <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        <h2 class="text-xl font-semibold text-gray-900">Create Tweet</h2>
-      </div>
-      <p class="text-gray-600">Manually create tweets using markdown syntax with live preview and validation.</p>
-    </a>
-
-    <!-- Parse from Clipboard -->
-    <a
-      href="/admin/parse"
-      class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-green-500"
-    >
-      <div class="flex items-center mb-4">
-        <svg class="w-8 h-8 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <h2 class="text-xl font-semibold text-gray-900">Parse from Clipboard</h2>
-      </div>
-      <p class="text-gray-600">Copy tweets from Twitter/X and automatically parse them with media download.</p>
-    </a>
-
-    <!-- Manage Tweets -->
-    <a
-      href="/admin/tweets"
-      class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-purple-500"
-    >
-      <div class="flex items-center mb-4">
-        <svg class="w-8 h-8 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-        <h2 class="text-xl font-semibold text-gray-900">Manage Tweets</h2>
-      </div>
-      <p class="text-gray-600">View, edit, and manage all your archived tweets with search and sorting.</p>
-    </a>
-
-    <!-- View Public Site -->
-    <a
-      href="/"
-      target="_blank"
-      class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-gray-500"
-    >
-      <div class="flex items-center mb-4">
-        <svg class="w-8 h-8 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
-        <h2 class="text-xl font-semibold text-gray-900">View Public Site</h2>
-      </div>
-      <p class="text-gray-600">See how your tweet archive looks to visitors on the public site.</p>
-    </a>
-  </div>
-
-  <!-- Quick Stats -->
-  <div class="mt-12 bg-gray-50 rounded-lg p-6">
-    <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-    <div class="flex flex-wrap gap-3">
-      <a
-        href="/admin/create"
-        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-      >
-        New Tweet
-      </a>
-      <a
-        href="/admin/parse"
-        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-      >
-        Parse Clipboard
-      </a>
-      <a
-        href="/admin/tweets"
-        class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-      >
-        All Tweets
-      </a>
-    </div>
-  </div>
+  {#if recent.length > 0}
+    <section class="mt-10">
+      <h2 class="mb-3 text-sm font-medium text-gray-700">Recently added</h2>
+      <ul class="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white">
+        {#each recent as tweet (tweet.id)}
+          <li class="flex items-center justify-between gap-4 px-4 py-3">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium">{tweet.title}</p>
+              <p class="text-xs text-gray-500">{new Date(tweet.created_at).toLocaleDateString()}</p>
+            </div>
+            <a href="/admin/tweets/{tweet.slug}/edit" class="shrink-0 text-sm text-blue-600 hover:text-blue-800">Edit</a>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 </div>

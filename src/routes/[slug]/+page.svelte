@@ -2,23 +2,32 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
+  import { getMediaUrl, isVideo } from '$lib/utils/media';
+  import { decodeHtmlEntities } from '$lib/utils/twitterTextParser.js';
 
   export let data;
-  
-  $: ({ tweet, parsedTweetData, allTweets, currentIndex } = data);
+
+  $: ({ tweet, parsedTweetData, previousSlug, nextSlug } = data);
+
+  // Link-preview fields: plain decoded text, and only a still image (a
+  // video file can't be an og:image).
+  $: description = parsedTweetData ? decodeHtmlEntities(parsedTweetData.body) : tweet.title;
+  $: previewTitle = parsedTweetData
+    ? `${decodeHtmlEntities(parsedTweetData.name)} (${parsedTweetData.handle})`
+    : tweet.title;
+  $: previewImage = parsedTweetData?.media?.find((file: string) => !isVideo(file));
+  $: ogImage = previewImage
+    ? getMediaUrl(previewImage)
+    : parsedTweetData?.avatar
+      ? getMediaUrl(parsedTweetData.avatar)
+      : null;
 
   function goToPrevious() {
-    if (currentIndex > 0) {
-      const prevTweet = allTweets[currentIndex - 1];
-      goto(`/${prevTweet.slug}`);
-    }
+    if (previousSlug) goto(`/${previousSlug}`);
   }
 
   function goToNext() {
-    if (currentIndex < allTweets.length - 1) {
-      const nextTweet = allTweets[currentIndex + 1];
-      goto(`/${nextTweet.slug}`);
-    }
+    if (nextSlug) goto(`/${nextSlug}`);
   }
 
   function goBackToFeed() {
@@ -28,46 +37,26 @@
 
 <svelte:head>
   <title>{tweet.title} / Museum of Twitter</title>
-  
+  <meta name="description" content={description} />
   <meta property="og:site_name" content="Museum of Twitter" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://www.museumoftwitter.com/{tweet.slug}" />
-  
-  {#if parsedTweetData}
-    <meta name="description" content={parsedTweetData.body} />
-    <meta property="og:title" content="{parsedTweetData.name} ({parsedTweetData.handle})" />
-    <meta property="og:description" content="{parsedTweetData.body}" />
-    <meta name="twitter:card" content={parsedTweetData.media?.length ? "summary_large_image" : "summary"} />
-    <meta name="twitter:title" content="{parsedTweetData.name} ({parsedTweetData.handle})" />
-    <meta name="twitter:description" content="{parsedTweetData.body}" />
-    
-    {#if parsedTweetData.media && parsedTweetData.media.length > 0}
-      <meta property="og:image" content="https://yfjsgbekrbrhytucapha.supabase.co/storage/v1/object/public/tweet-media/{parsedTweetData.media[0]}" />
-      <meta property="og:image:alt" content="Media from {parsedTweetData.name}'s tweet" />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta name="twitter:image" content="https://yfjsgbekrbrhytucapha.supabase.co/storage/v1/object/public/tweet-media/{parsedTweetData.media[0]}" />
-    {:else if parsedTweetData.avatar}
-      <meta property="og:image" content="https://yfjsgbekrbrhytucapha.supabase.co/storage/v1/object/public/tweet-media/{parsedTweetData.avatar}" />
-      <meta property="og:image:alt" content="{parsedTweetData.name}'s avatar" />
-      <meta property="og:image:width" content="400" />
-      <meta property="og:image:height" content="400" />
-      <meta name="twitter:image" content="https://yfjsgbekrbrhytucapha.supabase.co/storage/v1/object/public/tweet-media/{parsedTweetData.avatar}" />
-    {/if}
-  {:else}
-    <meta name="description" content="{tweet.title}" />
-    <meta property="og:title" content="{tweet.title}" />
-    <meta property="og:description" content="{tweet.title}" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="{tweet.title}" />
-    <meta name="twitter:description" content="{tweet.title}" />
+  <meta property="og:title" content={previewTitle} />
+  <meta property="og:description" content={description} />
+  <meta name="twitter:card" content={previewImage ? 'summary_large_image' : 'summary'} />
+  <meta name="twitter:title" content={previewTitle} />
+  <meta name="twitter:description" content={description} />
+  {#if ogImage}
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:image" content={ogImage} />
   {/if}
 </svelte:head>
 
 <div class="twitter-tweet-page">
   <header class="twitter-tweet-header">
     <div class="twitter-tweet-header-inner">
-      <button 
+      <button
+        type="button"
         class="twitter-nav-button twitter-back-button"
         on:click={goBackToFeed}
         aria-label="Back to timeline"
@@ -80,10 +69,11 @@
       <h1 class="twitter-tweet-title">Post</h1>
 
       <div class="twitter-tweet-nav">
-        <button 
+        <button
+          type="button"
           class="twitter-nav-button twitter-prev-button"
           on:click={goToPrevious}
-          disabled={currentIndex <= 0}
+          disabled={!previousSlug}
           aria-label="Previous post"
         >
           <svg class="twitter-nav-icon" fill="currentColor" viewBox="0 0 24 24">
@@ -91,10 +81,11 @@
           </svg>
         </button>
         
-        <button 
+        <button
+          type="button"
           class="twitter-nav-button twitter-next-button"
           on:click={goToNext}
-          disabled={currentIndex >= allTweets.length - 1}
+          disabled={!nextSlug}
           aria-label="Next post"
         >
           <svg class="twitter-nav-icon" fill="currentColor" viewBox="0 0 24 24">
@@ -112,17 +103,6 @@
   </main>
 </div>
 <style>
-  :global(body) {
-    font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 15px;
-    line-height: 20px;
-    margin: 0;
-    padding: 0;
-    transition: background-color 0.2s ease, color 0.2s ease;
-  }
-
   .twitter-tweet-page {
     max-width: 600px;
     margin: 0 auto;
