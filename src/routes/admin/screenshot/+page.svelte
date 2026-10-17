@@ -10,6 +10,7 @@
   import { supabase } from '$lib/supabase.js';
   import { TweetMarkdownParser, generateSlug, type TweetData } from '$lib/utils/markdownParser.js';
   import { deleteMediaFiles } from '$lib/utils/tweetAdmin';
+  import { randomEngagement, type EngagementLevel } from '$lib/utils/engagement';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
 
   type Kind = 'avatar' | 'media' | 'quote-avatar' | 'quote-media';
@@ -198,6 +199,11 @@
     }
     rects = rects;
     rects.forEach(updateCrop);
+  }
+
+  // Each click rolls new numbers for that level.
+  function fakeEngagement(level: EngagementLevel) {
+    ({ replies, retweets, likes } = randomEngagement(level));
   }
 
   // ---- boxes ---------------------------------------------------------------
@@ -551,6 +557,19 @@
               <label for="replying-to" class="mb-1 block text-sm font-medium text-gray-700">Replying to</label>
               <input id="replying-to" bind:value={replyingTo} class="field" placeholder="@handle (optional)" />
             </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm text-gray-600">No counts in the screenshot? Make some up:</span>
+            {#each ['low', 'medium', 'high'] as const as level}
+              <button
+                type="button"
+                on:click={() => fakeEngagement(level)}
+                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 capitalize hover:bg-gray-50"
+                title="Random {level} engagement — click again for new numbers"
+              >
+                {level}
+              </button>
+            {/each}
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
