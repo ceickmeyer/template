@@ -173,7 +173,7 @@
                   <span>{formatNumber(counts.likes)}</span>
                 </span>
                 {#if last && tweet.slug}
-                  <span class="thread-share" data-no-capture>
+                  <span class="thread-share">
                     <ShareMenu slug={tweet.slug} target={card} onDone={showToast} />
                   </span>
                 {/if}
@@ -225,7 +225,7 @@
         <span>{formatNumber(metrics.likes)}</span>
       </span>
       {#if tweet.slug}
-        <span class="tweet-share-slot" data-no-capture>
+        <span class="tweet-share-slot">
           <ShareMenu slug={tweet.slug} target={card} onDone={showToast} />
         </span>
       {/if}

@@ -59,8 +59,6 @@
       scale: 2,
       // The card itself is transparent; use the page's current theme color.
       backgroundColor: getComputedStyle(document.body).backgroundColor,
-      // Leave the share button out of the picture.
-      filter: (node) => !(node instanceof HTMLElement && node.hasAttribute('data-no-capture')),
       timeout: 15000
     });
   }
@@ -117,7 +115,6 @@
   type="button"
   class="share-button"
   class:busy
-  data-no-capture
   on:click={toggle}
   aria-label="Share"
   aria-haspopup="menu"
@@ -168,8 +165,8 @@
     outline: 2px solid var(--accent);
   }
 
+  /* No fading while busy: the button is part of the copied image. */
   .share-button.busy {
-    opacity: 0.5;
     cursor: progress;
   }
 
