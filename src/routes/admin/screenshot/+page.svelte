@@ -13,17 +13,22 @@
   import { randomEngagement, type EngagementLevel } from '$lib/utils/engagement';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
 
-  type Kind = 'avatar' | 'media' | 'quote-avatar' | 'quote-media';
-  // Boxes are kept in the original screenshot's pixels.
-  type Rect = { id: number; kind: Kind; x: number; y: number; w: number; h: number };
+  type Kind = 'avatar' | 'media' | 'quote-avatar' | 'quote-media' | 'reply-avatar' | 'reply-media';
+  // Boxes are kept in the original screenshot's pixels. Reply boxes point at
+  // their reply by key (stable when other replies are removed).
+  type Rect = { id: number; kind: Kind; replyKey?: number; x: number; y: number; w: number; h: number };
   type ApiBox = { found: boolean; x: number; y: number; width: number; height: number };
+  type Reply = { key: number; name: string; handle: string; body: string; time: string; replies: number; retweets: number; likes: number };
 
   const KIND_LABEL: Record<Kind, string> = {
     avatar: 'Avatar',
     media: 'Media',
     'quote-avatar': 'Quote avatar',
-    'quote-media': 'Quote media'
+    'quote-media': 'Quote media',
+    'reply-avatar': 'Avatar',
+    'reply-media': 'Media'
   };
+  const MAIN_KINDS: Kind[] = ['avatar', 'media', 'quote-avatar', 'quote-media'];
   // Long edge / pixel count above which the API downsizes images itself —
   // stay under it so the box coordinates it returns match what it saw.
   const MAX_EDGE = 1568;
@@ -41,6 +46,7 @@
   let rects: Rect[] = [];
   let nextId = 1;
   let drawKind: Kind | null = null;
+  let drawReplyKey: number | undefined = undefined;
   let crops: Record<number, { blob: Blob; url: string }> = {};
 
   let title = '';
@@ -57,6 +63,8 @@
   let quoteHandle = '';
   let quoteBody = '';
   let quoteTime = '';
+  let thread: Reply[] = [];
+  let nextReplyKey = 1;
 
   let extracting = false;
   let saving = false;
@@ -117,6 +125,7 @@
     replies = retweets = likes = 0;
     hasQuote = false;
     quoteName = quoteHandle = quoteBody = quoteTime = '';
+    thread = [];
     errorMessage = '';
     successSlug = '';
     usageNote = '';
@@ -186,9 +195,11 @@
     const snippet = body.replace(/\s+/g, ' ').trim();
     title = `${name} - ${snippet.length > 50 ? `${snippet.slice(0, 50)}…` : snippet}`;
 
-    const add = (kind: Kind, b: ApiBox | undefined) => {
+    const add = (kind: Kind, b: ApiBox | undefined, replyKey?: number) => {
       if (!b?.found || b.width <= 0 || b.height <= 0) return;
-      rects.push(clampRect({ id: nextId++, kind, x: b.x * toOriginal, y: b.y * toOriginal, w: b.width * toOriginal, h: b.height * toOriginal }));
+      rects.push(
+        clampRect({ id: nextId++, kind, replyKey, x: b.x * toOriginal, y: b.y * toOriginal, w: b.width * toOriginal, h: b.height * toOriginal })
+      );
     };
     rects = [];
     add('avatar', tweet.avatarBox);
@@ -197,6 +208,22 @@
       add('quote-avatar', tweet.quote.avatarBox);
       (tweet.quote.mediaBoxes ?? []).forEach((b: ApiBox) => add('quote-media', { ...b, found: true }));
     }
+
+    thread = (tweet.thread ?? []).map((r: any) => {
+      const key = nextReplyKey++;
+      add('reply-avatar', r.avatarBox, key);
+      (r.mediaBoxes ?? []).forEach((b: ApiBox) => add('reply-media', { ...b, found: true }, key));
+      return {
+        key,
+        name: r.name ?? '',
+        handle: r.handle ?? '',
+        body: r.body ?? '',
+        time: r.time ?? '',
+        replies: r.replies ?? 0,
+        retweets: r.retweets ?? 0,
+        likes: r.likes ?? 0
+      };
+    });
     rects = rects;
     rects.forEach(updateCrop);
   }
@@ -204,6 +231,35 @@
   // Each click rolls new numbers for that level.
   function fakeEngagement(level: EngagementLevel) {
     ({ replies, retweets, likes } = randomEngagement(level));
+  }
+
+  function fakeReplyEngagement(reply: Reply, level: EngagementLevel) {
+    Object.assign(reply, randomEngagement(level));
+    thread = thread;
+  }
+
+  // ---- thread replies ------------------------------------------------------
+
+  function addReply() {
+    thread = [...thread, { key: nextReplyKey++, name: '', handle: '', body: '', time: '', replies: 0, retweets: 0, likes: 0 }];
+  }
+
+  function removeReply(key: number) {
+    removeRects((r) => r.replyKey === key);
+    thread = thread.filter((r) => r.key !== key);
+  }
+
+  // `_thread` is only there so labels re-render when replies are added/removed.
+  function boxLabel(rect: Rect, _thread: Reply[]) {
+    if (rect.replyKey === undefined) return KIND_LABEL[rect.kind];
+    const n = thread.findIndex((r) => r.key === rect.replyKey) + 1;
+    return `Reply ${n} ${KIND_LABEL[rect.kind].toLowerCase()}`;
+  }
+
+  function chooseDraw(kind: Kind, replyKey?: number) {
+    const same = drawKind === kind && drawReplyKey === replyKey;
+    drawKind = same ? null : kind;
+    drawReplyKey = same ? undefined : replyKey;
   }
 
   // ---- boxes ---------------------------------------------------------------
@@ -261,11 +317,13 @@
   function startDraw(event: PointerEvent) {
     if (!drawKind || !image) return;
     const kind = drawKind;
+    const replyKey = drawReplyKey;
     drawKind = null;
+    drawReplyKey = undefined;
     const point = pointerToImage(event);
-    // Only one avatar per tweet / quote — replace an existing one.
-    if (kind.endsWith('avatar')) removeRects((r) => r.kind === kind);
-    const rect: Rect = { id: nextId++, kind, x: Math.round(point.x), y: Math.round(point.y), w: 4, h: 4 };
+    // Only one avatar per tweet / quote / reply — replace an existing one.
+    if (kind.endsWith('avatar')) removeRects((r) => r.kind === kind && r.replyKey === replyKey);
+    const rect: Rect = { id: nextId++, kind, replyKey, x: Math.round(point.x), y: Math.round(point.y), w: 4, h: 4 };
     rects = [...rects, rect];
     if (kind.startsWith('quote')) hasQuote = true;
     drag(event, rect, 'resize');
@@ -297,16 +355,16 @@
 
   // Reading order for media: top-to-bottom rows, then left-to-right — this
   // matches X's grid (e.g. the 3-image layout: left, top-right, bottom-right).
-  function ordered(kind: Kind) {
+  function ordered(kind: Kind, replyKey?: number) {
     return rects
-      .filter((r) => r.kind === kind)
+      .filter((r) => r.kind === kind && r.replyKey === replyKey)
       .sort((a, b) => Math.round(a.y / 24) - Math.round(b.y / 24) || a.x - b.x);
   }
 
   // ---- building the tweet --------------------------------------------------
 
   function buildTweet(fileFor: (rect: Rect) => string | undefined): TweetData {
-    const files = (kind: Kind) => ordered(kind).map(fileFor).filter((f): f is string => !!f);
+    const files = (kind: Kind, replyKey?: number) => ordered(kind, replyKey).map(fileFor).filter((f): f is string => !!f);
     const tweet: TweetData = {
       name: name.trim(),
       handle: handle.trim(),
@@ -327,6 +385,17 @@
         media: files('quote-media')
       };
     }
+    if (thread.length) {
+      tweet.replies = thread.map((r) => ({
+        name: r.name.trim(),
+        handle: r.handle.trim(),
+        body: r.body.trim(),
+        time: r.time.trim() || undefined,
+        likes: `${r.replies || 0},${r.retweets || 0},${r.likes || 0}`,
+        avatar: files('reply-avatar', r.key)[0],
+        media: files('reply-media', r.key)
+      }));
+    }
     return tweet;
   }
 
@@ -335,7 +404,7 @@
     return TweetMarkdownParser.generateMarkdown(buildTweet((r) => crops[r.id]?.url));
   }
   $: previewMarkdown = image
-    ? previewFor(rects, crops, name, handle, body, time, replies, retweets, likes, replyingTo, hasQuote, quoteName, quoteHandle, quoteBody, quoteTime)
+    ? previewFor(rects, crops, name, handle, body, time, replies, retweets, likes, replyingTo, hasQuote, quoteName, quoteHandle, quoteBody, quoteTime, thread)
     : '';
   $: previewResult = previewMarkdown ? TweetMarkdownParser.parse(previewMarkdown) : null;
 
@@ -452,21 +521,23 @@
       <div>
         <div class="mb-2 flex flex-wrap items-center gap-2">
           <span class="text-sm font-medium text-gray-700">Draw a box:</span>
-          {#each Object.entries(KIND_LABEL) as [kind, label]}
+          {#each MAIN_KINDS as kind}
             <button
               type="button"
-              on:click={() => (drawKind = drawKind === kind ? null : (kind as Kind))}
-              class="rounded border px-2 py-1 text-xs {drawKind === kind
+              on:click={() => chooseDraw(kind)}
+              class="rounded border px-2 py-1 text-xs {drawKind === kind && drawReplyKey === undefined
                 ? 'border-blue-600 bg-blue-600 text-white'
                 : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
             >
-              {label}
+              {KIND_LABEL[kind]}
             </button>
           {/each}
+          <span class="text-xs text-gray-500">Reply boxes: use the buttons on each reply.</span>
         </div>
         <p class="mb-2 text-xs text-gray-500">
           {#if drawKind}
-            Drag on the screenshot to draw the {KIND_LABEL[drawKind].toLowerCase()} box.
+            Drag on the screenshot to draw the
+            {drawReplyKey !== undefined ? `reply ${thread.findIndex((r) => r.key === drawReplyKey) + 1} ` : ''}{KIND_LABEL[drawKind].toLowerCase()} box.
           {:else}
             Drag a box to move it, drag its corner to resize, × to remove.
           {/if}
@@ -495,11 +566,11 @@
                 100}%;"
               on:pointerdown={(e) => drag(e, rect, 'move')}
             >
-              <span class="box-label">{KIND_LABEL[rect.kind]}</span>
+              <span class="box-label">{boxLabel(rect, thread)}</span>
               <button
                 type="button"
                 class="box-remove"
-                aria-label="Remove {KIND_LABEL[rect.kind]} box"
+                aria-label="Remove {boxLabel(rect, thread)} box"
                 on:pointerdown={(e) => e.stopPropagation()}
                 on:click={() => removeRects((r) => r.id === rect.id)}>×</button
               >
@@ -611,6 +682,94 @@
               </div>
             </div>
           {/if}
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-gray-700">Replies in the thread ({thread.length})</span>
+              <button
+                type="button"
+                on:click={addReply}
+                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                + Add reply
+              </button>
+            </div>
+            {#if hasQuote && thread.length}
+              <p class="text-xs text-red-700">A tweet can quote another tweet or show replies, not both — remove one.</p>
+            {/if}
+            {#each thread as reply, i (reply.key)}
+              <div class="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-sm font-medium text-gray-700">Reply {i + 1}</span>
+                  <div class="flex flex-wrap gap-1">
+                    {#each ['reply-avatar', 'reply-media'] as const as kind}
+                      <button
+                        type="button"
+                        on:click={() => chooseDraw(kind, reply.key)}
+                        class="rounded border px-2 py-1 text-xs {drawKind === kind && drawReplyKey === reply.key
+                          ? 'border-blue-600 bg-blue-600 text-white'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+                      >
+                        Draw {KIND_LABEL[kind].toLowerCase()}
+                      </button>
+                    {/each}
+                    <button
+                      type="button"
+                      on:click={() => removeReply(reply.key)}
+                      class="rounded border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label for="reply-{reply.key}-name" class="mb-1 block text-xs font-medium text-gray-700">Name</label>
+                    <input id="reply-{reply.key}-name" bind:value={reply.name} class="field" />
+                  </div>
+                  <div>
+                    <label for="reply-{reply.key}-handle" class="mb-1 block text-xs font-medium text-gray-700">Handle</label>
+                    <input id="reply-{reply.key}-handle" bind:value={reply.handle} class="field" />
+                  </div>
+                </div>
+                <div>
+                  <label for="reply-{reply.key}-body" class="mb-1 block text-xs font-medium text-gray-700">Text</label>
+                  <textarea id="reply-{reply.key}-body" bind:value={reply.body} rows="3" class="field"></textarea>
+                </div>
+                <div>
+                  <label for="reply-{reply.key}-time" class="mb-1 block text-xs font-medium text-gray-700">Time</label>
+                  <input id="reply-{reply.key}-time" bind:value={reply.time} class="field" />
+                </div>
+                <div class="flex flex-wrap items-center gap-1">
+                  <span class="text-xs text-gray-600">Counts:</span>
+                  {#each ['low', 'medium', 'high'] as const as level}
+                    <button
+                      type="button"
+                      on:click={() => fakeReplyEngagement(reply, level)}
+                      class="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-700 capitalize hover:bg-gray-50"
+                      title="Random {level} engagement — click again for new numbers"
+                    >
+                      {level}
+                    </button>
+                  {/each}
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                  <div>
+                    <label for="reply-{reply.key}-replies" class="mb-1 block text-xs font-medium text-gray-700">Replies</label>
+                    <input id="reply-{reply.key}-replies" type="number" min="0" bind:value={reply.replies} class="field" />
+                  </div>
+                  <div>
+                    <label for="reply-{reply.key}-retweets" class="mb-1 block text-xs font-medium text-gray-700">Reposts</label>
+                    <input id="reply-{reply.key}-retweets" type="number" min="0" bind:value={reply.retweets} class="field" />
+                  </div>
+                  <div>
+                    <label for="reply-{reply.key}-likes" class="mb-1 block text-xs font-medium text-gray-700">Likes</label>
+                    <input id="reply-{reply.key}-likes" type="number" min="0" bind:value={reply.likes} class="field" />
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
         </fieldset>
 
         <div>
@@ -674,6 +833,14 @@
   .box-quote-media {
     --box-color: rgb(37 99 235);
     border-style: dashed;
+  }
+
+  .box-reply-avatar {
+    --box-color: rgb(234 88 12);
+  }
+
+  .box-reply-media {
+    --box-color: rgb(13 148 136);
   }
 
   .box-label {
