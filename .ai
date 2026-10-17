@@ -6,7 +6,8 @@ A Twitter-like archive system built with SvelteKit and Supabase. Tweets are auth
 This doc describes the codebase as it actually exists, not an aspirational plan — keep it in sync when routes, components, or the schema change.
 
 ## Tech Stack
-- **Frontend**: SvelteKit 2 (Svelte 5, runes) + TypeScript + Tailwind CSS v4
+- **Frontend**: SvelteKit 2 (Svelte 5, components written in the legacy `export let` / `$:` syntax) + TypeScript + Tailwind CSS v4
+- **Hosting**: Vercel via `@sveltejs/adapter-vercel` (v6 — v7 needs SvelteKit 3)
 - **Backend**: Supabase (Postgres + Storage + Auth)
 - **Admin auth**: `@supabase/ssr` cookie-based sessions (email+password), session validated server-side in `hooks.server.js` and gated in `admin/+layout.server.js`
 - **Custom markdown parser**: hand-written bracket-tag parser (no external markdown library)
@@ -46,7 +47,7 @@ URLs in body text are linked and shortened for display, and `#hashtags`/`@handle
 [/reply]
 ```
 
-A tweet block cannot have both `[quote]` and `[reply]` — the parser throws if both are present. Media/avatar filenames are resolved to public URLs via `supabase.storage.from('tweet-media').getPublicUrl(filename)`; there's no DB table tracking uploaded files, just the storage bucket plus the filename referenced in the markdown.
+A tweet with `[reply]` blocks renders as a **thread**, like X's own thread view: every post in one column, avatars joined by a line, each post with its own counts, and the share button only on the last post. A tweet block cannot have both `[quote]` and `[reply]` — the parser throws if both are present. Media/avatar filenames are resolved to public URLs via `supabase.storage.from('tweet-media').getPublicUrl(filename)`; there's no DB table tracking uploaded files, just the storage bucket plus the filename referenced in the markdown.
 
 ## Data Model
 
@@ -120,15 +121,17 @@ Two minor, low-risk cleanup items confirmed live but not yet acted on: `tweets` 
 ```
 src/
 ├── app.html                            # Inline script applies the saved public theme before first paint
-├── app.css                             # Theme variables (dark/light/admin), Chirp font, base body styles
+├── app.css                             # Theme variables (dark/light/admin), Chirp font, base body styles, Tailwind's reset only
+├── admin.css                           # Tailwind theme + utility classes — imported by admin/+layout.svelte only
 ├── hooks.server.js                     # Supabase SSR client + safeGetSession per request
 ├── app.d.ts                            # Locals typing (supabase, safeGetSession)
 ├── lib/
 │   ├── theme.ts                        # get/set public theme (data-theme on <html> + localStorage)
-│   ├── actions/portal.ts               # Moves overlays (lightbox, toast) to <body>
+│   ├── actions/portal.ts               # Moves overlays (lightbox, toast, share menu) to <body>
 │   ├── components/
-│   │   ├── UserTweetDisplay.svelte     # THE tweet renderer — public feed, tweet page, and every admin preview
-│   │   ├── TweetMedia.svelte           # Twitter-style media grid (1 / 2 / 3 / 4 layouts, "+N" overflow)
+│   │   ├── UserTweetDisplay.svelte     # THE tweet renderer — public feed, tweet page, and every admin preview (single or thread layout)
+│   │   ├── ShareMenu.svelte            # Share button + menu: Copy link / Copy as image (PNG via modern-screenshot)
+│   │   ├── TweetMedia.svelte           # Twitter-style media grid (1 / 2 / 3 / 4 layouts, "+N" overflow; `size="quote"` for quote cards)
 │   │   ├── MediaLightbox.svelte        # Full-screen image viewer (arrows/Escape, portaled to <body>)
 │   │   ├── TweetAvatar.svelte          # Avatar image with initials fallback when the file is missing
 │   │   ├── FeaturedTweet.svelte        # Wraps UserTweetDisplay with the "Featured" label and glow
@@ -136,22 +139,26 @@ src/
 │   │   ├── Navigation.svelte           # Admin top nav (rendered by admin/+layout.svelte)
 │   │   └── TweetCreator.svelte         # /admin/create: markdown editor, uploads, samples, live preview
 │   ├── utils/
+│   │   ├── engagement.ts               # randomEngagement(level): made-up low/medium/high counts
 │   │   ├── markdownParser.ts           # TweetMarkdownParser: parse/generate bracket-tag markdown; slug + likes helpers
 │   │   ├── twitterClipboardParser.ts   # Parses copied X HTML or archiver-script JSON; media download via /admin/media-proxy
 │   │   ├── twitterTextParser.js        # Body text → safe HTML (entity decoding, links, hashtag/handle highlight)
 │   │   ├── media.ts                    # getMediaUrl(), isVideo()
 │   │   ├── tweetAdmin.ts               # deleteTweet(), deleteMediaFiles(), referencedMediaFiles()
-│   │   └── featuredTweet.js            # Featured-tweet rotation: get/set/rotate, 30-day no-repeat history
+│   │   └── featuredTweet.js            # Featured-tweet rotation: get/set/rotate, 30-day no-repeat history; TWEET_COLUMNS
 │   ├── server/screenshotExtract.ts     # Claude vision call + JSON schema for the screenshot importer (server-only)
+│   ├── server/feed.ts                  # Homepage feed query (fetchTweets), page size, public cache header
 │   ├── types/tweet.ts                  # StoredTweet (a `tweets` row)
 │   └── supabase.js                     # Anon-key Supabase client used by components/routes for data reads/writes
 ├── routes/
 │   ├── +layout.svelte                  # Loads app.css
-│   ├── +page.svelte                    # Home feed: search, sort (newest/oldest/shuffle), featured tweet, pagination
+│   ├── +page.server.ts                 # Home: today's featured tweet (rotating if due) + first page, rendered with the HTML
+│   ├── +page.svelte                    # Home feed: search, sort (newest/oldest/shuffle), featured tweet, infinite scroll via /api/tweets
+│   ├── api/tweets/+server.ts           # GET feed pages: ?sort=&q=&cursor=&exclude=
 │   ├── +error.svelte
 │   ├── [slug]/
 │   │   ├── +page.server.js             # Loads one tweet by slug + its newer/older neighbours' slugs
-│   │   └── +page.svelte                # Public single-tweet view (+ og/twitter link-preview tags)
+│   │   └── +page.svelte                # Public single-tweet view: floating card + back/prev/next (+ og/twitter link-preview tags)
 │   └── admin/
 │       ├── +layout.svelte              # .admin-shell light theme wrapper + Navigation
 │       ├── +layout.server.js           # Redirects to /admin/login when there's no session (except the login page itself)
@@ -179,11 +186,19 @@ tools/tampermonkey/museum-of-twitter-archiver.user.js   # Browser script: 📋 A
 - **Slugs are permanent**: editing a tweet never changes its slug, since the slug is the public URL people share.
 - **Deleting a tweet** (`deleteTweet()` in `tweetAdmin.ts`) removes its featured-tweet rows first (those foreign keys have no cascade), then the tweet, then every media file it references (main, quote, replies) via `/admin/media-cleanup`.
 - **Uploads happen before saving** in `/admin/parse` and `/admin/create` so previews work; Clear (and re-pasting in `/admin/parse`) deletes uploads that never made it into a saved tweet. Closing the tab mid-draft still leaves them behind.
-- **Featured tweet rotation** runs client-side on every homepage load (`loadFeaturedTweet()` in `+page.svelte`): checks whether today's rotation happened, fetches the current featured tweet, and initializes one if none exists. It is not cached or server-scheduled.
+- **Featured tweet rotation** happens when the homepage renders on the server (`getTodaysFeaturedTweet()`): one query when today's tweet is already set, a rotation (30-day no-repeat) when it's from an earlier UTC day or missing.
+- **Keeping public pages lean** (decided Oct 2026 — keep it this way):
+  - Public pages (`/`, `/[slug]`) get their data from server `load` functions and `/api/tweets`, and must not import `$lib/supabase.js` (directly or through a component/util) — that client is ~53KB gzipped. `getMediaUrl()` builds storage URLs by hand for the same reason. Admin pages still use the client directly.
+  - Queries select `TWEET_COLUMNS` (`id, slug, title, markdown_content, created_at`), not `*`.
+  - Public responses send `PUBLIC_CACHE` (`s-maxage=60, stale-while-revalidate=86400`), so Vercel's CDN serves most visits without running the function or querying Supabase; edits appear within about a minute. Don't add cookies or per-visitor content to public responses or they stop being cacheable.
+  - Heavy, rarely used code is loaded on demand (`modern-screenshot` is imported only when someone clicks "Copy as image").
+  - Tailwind utilities are admin-only (`admin.css`); public components use scoped `<style>` blocks and the theme variables.
+  - Result: ~44KB gzipped JS for the homepage, ~40KB for a tweet page, ~6KB of global CSS.
 - **Feed preferences** (sort order, theme) persist in `localStorage`, not per-user in the DB.
 - **Two tweet-import paths**: manual markdown entry (`TweetCreator.svelte`, used by `/admin/create`) and clipboard-HTML import (`twitterClipboardParser.ts`, used by `/admin/parse`). Both end up writing the same `{title, slug, markdown_content}` shape to `tweets`.
 - **Screenshot importer** (`/admin/screenshot`): the image is downscaled in the browser to stay under the API's own resize limit (1568px long edge / ~1.15MP) so the returned box coordinates match; boxes are kept in original-image pixels and the crops are cut from the original. Uses Claude Sonnet 5.5 at low effort (~1¢ per screenshot, ~1.5¢ for a thread). Handles threads/reply chains (stored as `[reply]` blocks); relative times like "1d" are kept as shown since there's no date to recover. Crops only upload on save (and are deleted again if the save fails).
-- **Engagement numbers**: the Tampermonkey script captures real counts; plain copy/paste doesn't carry them, so that path falls back to plausible synthetic numbers.
+- **Sharing**: the share button opens a small menu. "Copy link" copies `https://www.museumoftwitter.com/<slug>`; "Copy as image" renders the card (whole thread for threads) to a 2× PNG with `modern-screenshot` and writes it to the clipboard, falling back to downloading `<slug>.png` where image clipboard writes aren't allowed. Anything marked `data-no-capture` (the share button) is left out of the image. It relies on the `tweet-media` bucket sending `Access-Control-Allow-Origin: *` (it does); videos don't render into the image.
+- **Engagement numbers**: the Tampermonkey script captures real counts; plain copy/paste doesn't carry them, so that path falls back to plausible synthetic numbers. The screenshot importer has Low/Medium/High buttons (per post, for threads) that fill in made-up counts via `randomEngagement()`; clicking again re-rolls.
 - **Admin writes use the plain anon-key client** (`$lib/supabase.js`), not a session-bound server client — write authorization is enforced by Supabase RLS policies, not by SvelteKit. The page-level session gate in `admin/+layout.server.js` only protects rendering the admin UI.
 
 ## Environment variables
@@ -201,3 +216,13 @@ tools/tampermonkey/museum-of-twitter-archiver.user.js   # Browser script: 📋 A
 - `current_featured_tweet.tweet_id` / `featured_tweet_history.tweet_id` foreign keys could be `ON DELETE CASCADE`; `deleteTweet()` works around it by deleting those rows first.
 
 Already fixed: the old unused `types/tweet.ts` and `TweetParser.svelte` (plus the `@tiptap/*` deps) were deleted; `.sql` reflects the verified live schema; `TweetDisplay.svelte` was folded into `UserTweetDisplay.svelte`; the global `!important` theme overrides in `app.css` were removed.
+
+## Roadmap / open items
+Ordered roughly by importance. Move items to "Already fixed" (or delete them) when done.
+
+1. **Lock down writes** — the RLS item above: policies that require `authenticated` for writes, plus admin mutations through a session-bound client. Needs a coordinated live-DB change (shared Supabase project — get explicit sign-off first).
+2. **Orphaned uploads** — closing the tab mid-draft in `/admin/parse` or `/admin/create` leaves uploaded files in `tweet-media`. A periodic admin "find unreferenced files" sweep (list the bucket, diff against `referencedMediaFiles()` over all tweets) would catch them.
+3. **Link previews for threads** — the og/twitter tags use only the first post's text and first image; a generated preview image (e.g. a server-rendered card) would look better when pasted into chats.
+4. **Copy as image with video** — videos come out blank; could swap in a poster frame before capturing.
+5. **Featured-tweet rotation** runs during a server render; with the CDN cache that's at most once a minute, but two cold renders right after midnight UTC could still both rotate. A Vercel cron job would make it exactly once a day.
+6. **DB cleanup** — drop the unused `parsed_json`/`tweet_date` columns and the redundant slug index (see above).

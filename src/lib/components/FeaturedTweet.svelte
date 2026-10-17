@@ -21,15 +21,16 @@
   .featured-tweet-container {
     position: relative;
     margin-bottom: 16px;
-    margin-top: 16px; /* Increased to accommodate the label */
+    margin-top: 20px; /* room for the label above the card */
   }
 
-  /* Featured Tweet label at the top center */
+  /* Featured Tweet label, centered on the card's top border so it never
+     covers the name/handle/date line. */
   .featured-tweet-label {
     position: absolute;
-    top: -8px;
+    top: 0;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     z-index: 10;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);

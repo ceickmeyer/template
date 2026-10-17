@@ -30,6 +30,7 @@
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.135.0",
 		"@supabase/ssr": "^0.10.3",
-		"@supabase/supabase-js": "^2.56.0"
+		"@supabase/supabase-js": "^2.56.0",
+		"modern-screenshot": "^4.7.0"
 	}
 }

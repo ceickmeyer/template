@@ -1,24 +1,34 @@
 // src/lib/utils/featuredTweet.js
 import { supabase } from '$lib/supabase.js';
 
+// The tweet columns any page actually renders — not the unused parsed_json etc.
+export const TWEET_COLUMNS = 'id, slug, title, markdown_content, created_at';
+
+/** @typedef {import('$lib/types/tweet').StoredTweet} StoredTweet */
+
+// `tweets (...)` joins through a foreign key, so it's one row — the
+// untyped client infers an array.
+/** @param {unknown} joined @returns {StoredTweet | null} */
+const asTweet = (joined) => /** @type {StoredTweet | null} */ (joined ?? null);
+
 /**
  * Get the current featured tweet
+ * @returns {Promise<StoredTweet | null>}
  */
 export async function getCurrentFeaturedTweet() {
   try {
-    // Newest row rather than .single(): visitors' browsers run the daily
-    // rotation, so two at once can briefly leave two rows, and .single()
-    // erroring on that made the page rotate yet again.
+    // Newest row rather than .single(): two rotations at once can briefly
+    // leave two rows, and .single() erroring on that rotated yet again.
     const { data, error } = await supabase
       .from('current_featured_tweet')
-      .select('*, tweets (*)')
+      .select(`tweets (${TWEET_COLUMNS})`)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
 
-    return data?.tweets || null;
+    return asTweet(data?.tweets);
   } catch (error) {
     console.error('Error getting current featured tweet:', error);
     return null;
@@ -26,7 +36,7 @@ export async function getCurrentFeaturedTweet() {
 }
 
 /**
- * Get tweets that haven't been featured recently (last 30 days)
+ * Ids of tweets that haven't been featured recently (last 30 days)
  */
 export async function getUnfeaturedTweets() {
   try {
@@ -42,10 +52,7 @@ export async function getUnfeaturedTweets() {
 
     const excludeIds = recentlyFeatured?.map(item => item.tweet_id) || [];
 
-    let query = supabase
-      .from('tweets')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let query = supabase.from('tweets').select('id');
 
     if (excludeIds.length > 0) {
       query = query.not('id', 'in', `(${excludeIds.join(',')})`);
@@ -60,10 +67,7 @@ export async function getUnfeaturedTweets() {
       console.log('No unfeatured tweets found, resetting history...');
       await resetFeaturedHistory();
       
-      const { data: allTweets, error: allError } = await supabase
-        .from('tweets')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data: allTweets, error: allError } = await supabase.from('tweets').select('id');
 
       if (allError) throw allError;
       return allTweets || [];
@@ -95,6 +99,7 @@ export async function resetFeaturedHistory() {
 
 /**
  * Rotate to a new featured tweet (automatic daily rotation)
+ * @returns {Promise<StoredTweet | null>}
  */
 export async function rotateFeaturedTweet() {
   try {
@@ -119,6 +124,7 @@ export async function rotateFeaturedTweet() {
 /**
  * Manually set a tweet as featured
  * @param {string} tweetId
+ * @returns {Promise<StoredTweet | null>}
  */
 export async function setFeaturedTweet(tweetId) {
   try {
@@ -166,49 +172,29 @@ export async function setFeaturedTweet(tweetId) {
 }
 
 /**
- * Check if featured tweet needs rotation (call this daily)
+ * Today's featured tweet, rotating first if the current one is from an
+ * earlier day (or there is none). One query when no rotation is due.
+ * Runs on the server when the homepage renders.
+ * @returns {Promise<StoredTweet | null>}
  */
-export async function checkAndRotateDaily() {
+export async function getTodaysFeaturedTweet() {
   try {
-    const { data: current, error } = await supabase
+    const { data, error } = await supabase
       .from('current_featured_tweet')
-      .select('featured_since')
-      .order('featured_since', { ascending: false })
+      .select(`featured_since, tweets (${TWEET_COLUMNS})`)
+      .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
 
     const today = new Date().toISOString().split('T')[0];
+    const current = asTweet(data?.tweets);
+    if (current && data?.featured_since >= today) return current;
 
-    // If no featured tweet or it's from a previous date, rotate
-    if (!current || current.featured_since < today) {
-      console.log('Rotating featured tweet for new day');
-      return await rotateFeaturedTweet();
-    }
-
-    return null; // No rotation needed
+    return (await rotateFeaturedTweet()) ?? current;
   } catch (error) {
-    console.error('Error checking daily rotation:', error);
-    return null;
-  }
-}
-
-/**
- * Initialize featured tweet system (call once)
- */
-export async function initializeFeaturedTweet() {
-  try {
-    const current = await getCurrentFeaturedTweet();
-    
-    if (!current) {
-      console.log('No featured tweet found, setting initial one');
-      return await rotateFeaturedTweet();
-    }
-    
-    return current;
-  } catch (error) {
-    console.error('Error initializing featured tweet:', error);
+    console.error("Error loading today's featured tweet:", error);
     return null;
   }
 }

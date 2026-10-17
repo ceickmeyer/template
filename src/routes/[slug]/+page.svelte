@@ -52,153 +52,114 @@
   {/if}
 </svelte:head>
 
-<div class="twitter-tweet-page">
-  <header class="twitter-tweet-header">
-    <div class="twitter-tweet-header-inner">
-      <button
-        type="button"
-        class="twitter-nav-button twitter-back-button"
-        on:click={goBackToFeed}
-        aria-label="Back to timeline"
-      >
-        <svg class="twitter-nav-icon" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M7.414 13l5.043 5.04-1.414 1.42L3.586 12l7.457-7.46 1.414 1.42L7.414 11H21v2H7.414z"/>
-        </svg>
+<div class="tweet-page">
+  <nav class="tweet-page-nav" aria-label="Post navigation">
+    <button type="button" class="nav-button" on:click={goBackToFeed} aria-label="Back to timeline" title="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7.414 13l5.043 5.04-1.414 1.42L3.586 12l7.457-7.46 1.414 1.42L7.414 11H21v2H7.414z" />
+      </svg>
+    </button>
+
+    <div class="nav-pair">
+      <button type="button" class="nav-button" on:click={goToPrevious} disabled={!previousSlug} aria-label="Previous post" title="Previous">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>
       </button>
-
-      <h1 class="twitter-tweet-title">Post</h1>
-
-      <div class="twitter-tweet-nav">
-        <button
-          type="button"
-          class="twitter-nav-button twitter-prev-button"
-          on:click={goToPrevious}
-          disabled={!previousSlug}
-          aria-label="Previous post"
-        >
-          <svg class="twitter-nav-icon" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-          </svg>
-        </button>
-        
-        <button
-          type="button"
-          class="twitter-nav-button twitter-next-button"
-          on:click={goToNext}
-          disabled={!nextSlug}
-          aria-label="Next post"
-        >
-          <svg class="twitter-nav-icon" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-          </svg>
-        </button>
-      </div>
+      <button type="button" class="nav-button" on:click={goToNext} disabled={!nextSlug} aria-label="Next post" title="Next">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
+      </button>
     </div>
-  </header>
+  </nav>
 
-  <main class="twitter-tweet-main">
-    <article class="twitter-tweet-content">
+  <main>
+    <article class="tweet-card">
+      <h1 class="visually-hidden">{tweet.title}</h1>
       <UserTweetDisplay {tweet} clickable={false} />
     </article>
   </main>
 </div>
+
 <style>
-  .twitter-tweet-page {
+  /* One tweet floating as a card near the top of the page. */
+  .tweet-page {
     max-width: 600px;
     margin: 0 auto;
-    min-height: 100vh;
-    background-color: var(--bg-primary);
-    border-left: 1px solid var(--border-color);
-    border-right: 1px solid var(--border-color);
-    position: relative;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    padding: 24px 16px 64px;
   }
 
-  .twitter-tweet-header {
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    background-color: var(--nav-bg);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.2s ease, border-color 0.2s ease;
-  }
-
-  .twitter-tweet-header-inner {
+  .tweet-page-nav {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
-    height: 53px;
-    gap: 16px;
+    margin-bottom: 12px;
   }
 
-  .twitter-tweet-title {
-    font-size: 20px;
-    font-weight: 800;
-    line-height: 24px;
-    color: var(--text-primary);
-    margin: 0;
-    flex: 1;
-    text-align: center;
-    transition: color 0.2s ease;
+  .nav-pair {
+    display: flex;
+    gap: 4px;
   }
 
-  .twitter-nav-button {
+  .nav-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     border: none;
     border-radius: 50%;
-    background-color: transparent;
-    color: var(--text-primary);
+    background: none;
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s ease;
-    padding: 0;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  .twitter-nav-button:hover:not(:disabled) {
+  .nav-button:hover:not(:disabled) {
     background-color: var(--hover-bg);
+    color: var(--text-primary);
   }
 
-  .twitter-nav-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .nav-button:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
 
-  .twitter-nav-icon {
+  .nav-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .nav-button svg {
     width: 20px;
     height: 20px;
+    fill: currentColor;
   }
 
-  .twitter-tweet-nav {
-    display: flex;
-    gap: 8px;
+  .tweet-card {
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background-color: var(--bg-primary);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 12px 32px rgba(0, 0, 0, 0.12);
   }
 
-  .twitter-tweet-main {
-    min-height: calc(100vh - 53px);
+  :global(:root:not([data-theme='light'])) .tweet-card {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   }
 
-  @media (max-width: 688px) {
-    .twitter-tweet-page {
-      border-left: none;
-      border-right: none;
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 500px) {
+    .tweet-page {
+      padding: 16px 8px 48px;
     }
-
-    .twitter-tweet-header-inner {
-      padding: 0 12px;
-    }
-
-    .twitter-tweet-title {
-      font-size: 18px;
-    }
-  }
-
-  .twitter-nav-button:focus-visible {
-    outline: 2px solid rgb(29, 155, 240);
-    outline-offset: 2px;
   }
 </style>

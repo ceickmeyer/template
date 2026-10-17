@@ -1,4 +1,5 @@
 <script lang="ts">
+  import '../../admin.css';
   import { page } from '$app/stores';
   import Navigation from '$lib/components/Navigation.svelte';
 

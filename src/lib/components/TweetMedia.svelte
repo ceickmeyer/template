@@ -9,7 +9,7 @@
   import { getMediaUrl, isVideo } from '$lib/utils/media';
 
   export let media: string[] = [];
-  export let size: 'main' | 'quote' | 'reply' = 'main';
+  export let size: 'main' | 'quote' = 'main';
   // Called with the image URLs in this grid and the index of the clicked one.
   export let onOpen: ((urls: string[], index: number) => void) | undefined = undefined;
 
@@ -63,8 +63,7 @@
     overflow: hidden;
   }
 
-  .media-quote,
-  .media-reply {
+  .media-quote {
     margin-top: 8px;
     border-radius: 12px;
   }
@@ -124,9 +123,7 @@
   }
 
   .media-quote.count-1 img,
-  .media-quote.count-1 video,
-  .media-reply.count-1 img,
-  .media-reply.count-1 video {
+  .media-quote.count-1 video {
     max-height: 300px;
   }
 

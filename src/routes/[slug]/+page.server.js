@@ -2,12 +2,14 @@
 import { supabase } from '$lib/supabase.js';
 import { TweetMarkdownParser } from '$lib/utils/markdownParser.js';
 import { error, isHttpError } from '@sveltejs/kit';
+import { TWEET_COLUMNS } from '$lib/utils/featuredTweet.js';
+import { PUBLIC_CACHE } from '$lib/server/feed';
 
-export async function load({ params }) {
+export async function load({ params, setHeaders }) {
   try {
     const { data: tweet, error: fetchError } = await supabase
       .from('tweets')
-      .select('*')
+      .select(TWEET_COLUMNS)
       .eq('slug', params.slug)
       .single();
 
@@ -40,6 +42,7 @@ export async function load({ params }) {
         .maybeSingle()
     ]);
 
+    setHeaders(PUBLIC_CACHE);
     return {
       tweet,
       parsedTweetData,

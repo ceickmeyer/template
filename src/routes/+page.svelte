@@ -1,22 +1,23 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { supabase } from '$lib/supabase.js';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
   import FeaturedTweet from '$lib/components/FeaturedTweet.svelte';
   import FeedNavigation from '$lib/components/FeedNavigation.svelte';
-  import { getCurrentFeaturedTweet, checkAndRotateDaily, initializeFeaturedTweet } from '$lib/utils/featuredTweet.js';
-  
-  type SortOrder = 'newest' | 'oldest' | 'shuffle';
+  import type { FeedTweet, SortOrder } from '$lib/server/feed';
 
-  let tweets: any[] = [];
-  let featuredTweet: any = null;
-  let loading = true;
+  export let data;
+
+  // The first page (newest first) and the featured tweet come from the
+  // server with the HTML; everything after that is /api/tweets.
+  let tweets: FeedTweet[] = data.tweets;
+  let featuredTweet: FeedTweet | null = data.featuredTweet;
+  let hasMore = data.hasMore;
+  let loading = false;
   let loadingMore = false;
-  let hasMore = true;
   let error = '';
   // created_at of the last loaded tweet — the pagination cursor.
-  let cursor: string | null = null;
+  let cursor: string | null = tweets.at(-1)?.created_at ?? null;
   // Bumped on every fresh (non-append) load; responses from an older load
   // are dropped so a slow earlier search can't overwrite a newer one.
   let loadGeneration = 0;
@@ -24,53 +25,21 @@
   let searchTerm = '';
   let sortOrder: SortOrder = 'newest';
 
-  const TWEETS_PER_PAGE = 20;
   const SORT_STORAGE_KEY = 'feed-sort-order';
 
   onMount(() => {
     try {
       const saved = localStorage.getItem(SORT_STORAGE_KEY);
-      if (saved === 'newest' || saved === 'oldest' || saved === 'shuffle') sortOrder = saved;
+      if (saved === 'oldest' || saved === 'shuffle') {
+        sortOrder = saved;
+        loadTweets();
+      }
     } catch {
       // storage unavailable — keep the default
     }
 
-    (async () => {
-      await loadFeaturedTweet();
-      await loadTweets();
-    })();
-
     return setupInfiniteScroll();
   });
-
-  async function loadFeaturedTweet() {
-    try {
-      // Check if we need to rotate daily
-      await checkAndRotateDaily();
-      
-      // Get current featured tweet
-      featuredTweet = await getCurrentFeaturedTweet();
-      
-      // If no featured tweet exists, initialize the system
-      if (!featuredTweet) {
-        featuredTweet = await initializeFeaturedTweet();
-      }
-    } catch (err) {
-      console.error('Error loading featured tweet:', err);
-      // Don't show error to user, just continue without featured tweet
-    }
-  }
-
-  // Builds a PostgREST `ilike` value safe to embed in an .or() filter: LIKE
-  // wildcards (% _) and backslashes are escaped so they match literally,
-  // then the pattern is double-quoted so commas/parentheses/dots in the
-  // search can't break the filter syntax — searching "hello, world" used to
-  // error out because the raw text was pasted straight into the filter.
-  function ilikePattern(term: string) {
-    const likeEscaped = term.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-    const quoted = likeEscaped.replace(/[\\"]/g, (ch) => `\\${ch}`);
-    return `"%${quoted}%"`;
-  }
 
   function shuffle<T>(items: T[]): T[] {
     const result = [...items];
@@ -82,8 +51,6 @@
   }
 
   async function loadTweets(append = false) {
-    const searchQuery = searchTerm;
-    const sort = sortOrder;
     const generation = append ? loadGeneration : ++loadGeneration;
 
     if (append) {
@@ -91,41 +58,23 @@
     } else {
       loading = true;
       error = '';
-      cursor = null;
     }
 
+    const params = new URLSearchParams({ sort: sortOrder });
+    if (searchTerm) params.set('q', searchTerm);
+    if (featuredTweet) params.set('exclude', featuredTweet.id);
+    if (append && cursor) params.set('cursor', cursor);
+
     try {
-      let query = supabase
-        .from('tweets')
-        .select('*')
-        .order('created_at', { ascending: sort === 'oldest' });
-
-      if (searchQuery) {
-        // Searches return every match and include the featured tweet.
-        const pattern = ilikePattern(searchQuery);
-        query = query.or(`markdown_content.ilike.${pattern},title.ilike.${pattern}`);
-      } else {
-        if (featuredTweet) query = query.neq('id', featuredTweet.id);
-
-        if (sort !== 'shuffle') {
-          query = query.limit(TWEETS_PER_PAGE);
-          if (append && cursor) {
-            query = sort === 'oldest' ? query.gt('created_at', cursor) : query.lt('created_at', cursor);
-          }
-        }
-      }
-
-      const { data, error: fetchError } = await query;
-      if (fetchError) throw fetchError;
+      const res = await fetch(`/api/tweets?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const page: { tweets: FeedTweet[]; hasMore: boolean } = await res.json();
       if (generation !== loadGeneration) return; // superseded by a newer load
 
-      let page = data ?? [];
-      const paginated = !searchQuery && sort !== 'shuffle';
-      if (sort === 'shuffle' && !searchQuery) page = shuffle(page);
-
-      tweets = append ? [...tweets, ...page] : page;
-      hasMore = paginated && page.length === TWEETS_PER_PAGE;
-      if (paginated && page.length > 0) cursor = page[page.length - 1].created_at;
+      const loaded = sortOrder === 'shuffle' && !searchTerm ? shuffle(page.tweets) : page.tweets;
+      tweets = append ? [...tweets, ...loaded] : loaded;
+      hasMore = page.hasMore;
+      cursor = tweets.at(-1)?.created_at ?? null;
     } catch (err) {
       if (generation !== loadGeneration) return;
       console.error('Error fetching tweets:', err);
