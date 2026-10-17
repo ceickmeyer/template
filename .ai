@@ -16,7 +16,7 @@ This doc describes the codebase as it actually exists, not an aspirational plan 
 
 ## Custom Markdown Syntax
 
-Tags: `[name]`, `[handle]`, `[avatar]` (optional, filename in the `tweet-media` storage bucket), `[body]`, `[media]` (optional, comma-separated filenames — only the first `[media]` tag in a block is read), `[time]` (optional, defaults to "now" if omitted), `[likes]` (optional, `comments,retweets,likes`, defaults to `0,0,0`), `[replyingto]` (optional, "Replying to @x" context), `[unavailable]` (replaces every other tag in a block for a deleted/suspended tweet — normally inside `[quote]`).
+Tags: `[name]`, `[handle]`, `[avatar]` (optional, filename in the `tweet-media` storage bucket), `[body]`, `[media]` (optional, comma-separated filenames — only the first `[media]` tag in a block is read), `[time]` (optional, defaults to "now" if omitted), `[likes]` (optional, `comments,retweets,likes`, defaults to `0,0,0`), `[replyingto]` (optional, "Replying to @x" context), `[unavailable]` (replaces every other tag in a block for a deleted/suspended tweet — normally inside `[quote]`). `[deleted]` (optional, the tweet still shows in full with a "This Tweet has been deleted." bar along the bottom of the card; `[deleted]custom message[/deleted]` changes the text — only the main tweet's tag is shown, and one inside `[body]` text is ignored).
 
 URLs in body text are linked and shortened for display, and `#hashtags`/`@handles` are highlighted, at render time by `parseTwitterText()` — store plain text.
 

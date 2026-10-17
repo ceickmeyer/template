@@ -232,6 +232,10 @@
     </div>
 
     {/if}
+
+    {#if parsedTweet.deleted}
+      <div class="tweet-deleted">{text(parsedTweet.deleted)}</div>
+    {/if}
   </div>
 {/if}
 
@@ -248,6 +252,20 @@
     padding: 12px 16px;
     color: var(--tweet-body-color);
     font-family: 'TwitterChirp', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  /* [deleted]: a full-width bar along the bottom of the card. The negative
+     margins cancel the card's padding so it reaches the edges. */
+  .tweet-deleted {
+    margin: 12px -16px -12px;
+    padding: 12px 16px;
+    border-top: var(--hairline) solid var(--border-color);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
   }
 
   .tweet-clickable {

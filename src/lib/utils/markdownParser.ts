@@ -18,7 +18,13 @@ export interface TweetData {
   // quoted one) has been deleted/suspended by the time it was archived —
   // X shows a tombstone message in its place rather than real content.
   unavailable?: string;
+  // Set when the archived tweet has since been deleted: it still shows in
+  // full, with this message in a bar along the bottom of the card. Written
+  // as a bare [deleted] tag (default message) or [deleted]message[/deleted].
+  deleted?: string;
 }
+
+export const DEFAULT_DELETED_MESSAGE = 'This Tweet has been deleted.';
 
 export interface ParseResult {
   success: boolean;
@@ -174,6 +180,11 @@ export class TweetMarkdownParser {
     let time = this.extractTag(content, 'time', context, false);
     let likes = this.extractTag(content, 'likes', context, false);
     let replyingTo = this.extractTag(content, 'replyingto', context, false);
+    // Looked for outside [body], so a tweet that says "[deleted]" isn't marked.
+    const deletedMatch = content
+      .replace(/\[body\][\s\S]*?\[\/body\]/i, '')
+      .match(/\[deleted\](?:([\s\S]*?)\[\/deleted\])?/i);
+    const deleted = deletedMatch ? deletedMatch[1]?.trim() || DEFAULT_DELETED_MESSAGE : undefined;
 
     if (replyingTo && !replyingTo.trim().startsWith('@')) {
       replyingTo = '@' + replyingTo.trim();
@@ -213,7 +224,8 @@ export class TweetMarkdownParser {
       media: media && media.length > 0 ? media : undefined,
       time,
       likes,
-      replyingTo: replyingTo?.trim() || undefined
+      replyingTo: replyingTo?.trim() || undefined,
+      deleted
     };
   }
 
@@ -273,6 +285,10 @@ export class TweetMarkdownParser {
 
     if (tweetData.likes) {
       markdown += `[likes]${tweetData.likes}[/likes]`;
+    }
+
+    if (tweetData.deleted) {
+      markdown += tweetData.deleted === DEFAULT_DELETED_MESSAGE ? '\n[deleted]' : `\n[deleted]${tweetData.deleted}[/deleted]`;
     }
 
     return markdown;
