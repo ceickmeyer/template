@@ -8,6 +8,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { supabase } from '$lib/supabase.js';
+  import { findDuplicate } from '$lib/utils/duplicates';
   import { TweetMarkdownParser, generateSlug, type TweetData } from '$lib/utils/markdownParser.js';
   import { deleteMediaFiles } from '$lib/utils/tweetAdmin';
   import { randomEngagement, type EngagementLevel } from '$lib/utils/engagement';
@@ -69,6 +70,8 @@
   let extracting = false;
   let saving = false;
   let errorMessage = '';
+  // Slug of a found duplicate the admin chose to save past (see save).
+  let allowDuplicateOf = '';
   let successSlug = '';
   let usageNote = '';
   let dragOver = false;
@@ -426,6 +429,15 @@
     const stamp = Date.now();
 
     try {
+      // Same handle and (nearly) the same text as an archived tweet: stop
+      // once and say so; pressing save again saves it anyway.
+      const duplicate = await findDuplicate(TweetMarkdownParser.generateMarkdown(buildTweet(() => 'x')));
+      if (duplicate && duplicate.slug !== allowDuplicateOf) {
+        allowDuplicateOf = duplicate.slug;
+        errorMessage = `Looks like a duplicate of “${duplicate.title}” (/${duplicate.slug}). Save again to keep both.`;
+        return;
+      }
+
       for (const [i, rect] of rects.entries()) {
         const fileName = `${rect.kind}-${stamp}-${i}-screenshot.png`;
         const { error } = await supabase.storage

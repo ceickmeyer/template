@@ -11,6 +11,9 @@
 
   export let tweet: { markdown_content: string; slug?: string; title?: string };
   export let clickable: boolean = true;
+  // The "This Tweet has been deleted." bar ([deleted] tag) only shows on
+  // the tweet's own page, which turns this on.
+  export let showDeleted: boolean = false;
 
   $: parseResult = TweetMarkdownParser.parse(tweet.markdown_content);
   $: parsedTweet = parseResult.success ? parseResult.data : null;
@@ -233,7 +236,7 @@
 
     {/if}
 
-    {#if parsedTweet.deleted}
+    {#if showDeleted && parsedTweet.deleted}
       <div class="tweet-deleted">{text(parsedTweet.deleted)}</div>
     {/if}
   </div>
@@ -280,7 +283,7 @@
   .tweet-header-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
   }
 
   .tweet-author-info {

@@ -137,7 +137,7 @@
     </div>
     
     <!-- Right side: Search -->
-    <div class="feed-nav-search">
+    <div class="feed-nav-search" class:feed-nav-search-open={isMobile && isSearchExpanded}>
       {#if isMobile}
         <!-- Mobile: Collapsible search -->
         {#if isSearchExpanded}
@@ -351,33 +351,35 @@
     background-color: rgb(26, 140, 216);
   }
   
-  /* Mobile search */
+  /* Mobile search: opens inline, filling the rest of the nav row. (It
+     used to be position: fixed, but the bar's backdrop-filter makes the bar
+     the containing block and stacking context for fixed children, so it
+     landed over the feed underneath the featured tweet.) */
+  .feed-nav-search-open {
+    flex: 1;
+    min-width: 0;
+    margin-left: 12px;
+  }
+
   .feed-search-expanded {
-    position: fixed;
-    top: 53px;
-    left: 0;
-    right: 0;
-    z-index: 1001;
-    padding: 8px 16px;
-    background-color: var(--nav-bg-mobile);
-    backdrop-filter: blur(12px);
-    border-bottom: var(--hairline) solid var(--border-color);
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 8px;
+    width: 100%;
   }
   
   .feed-search-expanded .feed-search-input {
     flex: 1;
+    min-width: 0;
     border-radius: 20px;
-    height: 40px;
+    height: 36px;
     padding: 0 40px 0 16px;
     font-size: 16px; /* Prevent zoom on iOS */
   }
   
   .feed-search-expanded .feed-search-clear {
     position: absolute;
-    right: 24px;
+    right: 8px;
   }
   
   /* Search results indicator */

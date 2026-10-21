@@ -16,7 +16,7 @@ This doc describes the codebase as it actually exists, not an aspirational plan 
 
 ## Custom Markdown Syntax
 
-Tags: `[name]`, `[handle]`, `[avatar]` (optional, filename in the `tweet-media` storage bucket), `[body]`, `[media]` (optional, comma-separated filenames — only the first `[media]` tag in a block is read), `[time]` (optional, defaults to "now" if omitted), `[likes]` (optional, `comments,retweets,likes`, defaults to `0,0,0`), `[replyingto]` (optional, "Replying to @x" context), `[unavailable]` (replaces every other tag in a block for a deleted/suspended tweet — normally inside `[quote]`). `[deleted]` (optional, the tweet still shows in full with a "This Tweet has been deleted." bar along the bottom of the card; `[deleted]custom message[/deleted]` changes the text — only the main tweet's tag is shown, and one inside `[body]` text is ignored).
+Tags: `[name]`, `[handle]`, `[avatar]` (optional, filename in the `tweet-media` storage bucket), `[body]`, `[media]` (optional, comma-separated filenames — only the first `[media]` tag in a block is read), `[time]` (optional, defaults to "now" if omitted), `[likes]` (optional, `comments,retweets,likes`, defaults to `0,0,0`), `[replyingto]` (optional, "Replying to @x" context), `[unavailable]` (replaces every other tag in a block for a deleted/suspended tweet — normally inside `[quote]`). `[deleted]` (optional; on the tweet's own page only — `showDeleted` on `UserTweetDisplay` — the tweet shows in full with a "This Tweet has been deleted." bar along the bottom; `[deleted]custom message[/deleted]` changes the text — only the main tweet's tag is shown, and one inside `[body]` text is ignored).
 
 URLs in body text are linked and shortened for display, and `#hashtags`/`@handles` are highlighted, at render time by `parseTwitterText()` — store plain text.
 
@@ -140,6 +140,7 @@ src/
 │   │   └── TweetCreator.svelte         # /admin/create: markdown editor, uploads, samples, live preview
 │   ├── utils/
 │   │   ├── engagement.ts               # randomEngagement(level): made-up low/medium/high counts
+│   │   ├── duplicates.ts               # findDuplicate() (save-time check) and findDuplicateGroups() (tweets list scan)
 │   │   ├── markdownParser.ts           # TweetMarkdownParser: parse/generate bracket-tag markdown; slug + likes helpers
 │   │   ├── twitterClipboardParser.ts   # Parses copied X HTML or archiver-script JSON; media download via /admin/media-proxy
 │   │   ├── twitterTextParser.js        # Body text → safe HTML (entity decoding, links, hashtag/handle highlight)
@@ -196,6 +197,8 @@ tools/tampermonkey/museum-of-twitter-archiver.user.js   # Browser script: 📋 A
   - Tailwind utilities are admin-only (`admin.css`); public components use scoped `<style>` blocks and the theme variables.
   - Result: ~44KB gzipped JS for the homepage, ~40KB for a tweet page, ~6KB of global CSS.
 - **Link previews** (`[slug]/+page.svelte`): the first media of the main post, then replies, then the quoted tweet (`previewMedia()` in `media.ts`) is shown big at the top. Photos go through `/og/<slug>`, because chat apps shrink a roughly square image to a side thumbnail (Signal's rule: within 5% of square); there it's centred on a blurred copy of itself at 1200×630. A video goes in `og:video`. With no media the card uses the avatar (small thumbnail). Never put "on X" in the title.
+- **Duplicates**: saving from `/admin/parse`, `/admin/create` or `/admin/screenshot` first checks for an archived tweet with the same handle and ≥90% similar text (case, punctuation and links ignored). If one exists the save stops once with a message; saving again keeps both. `/admin/tweets` shows a banner listing any duplicate sets already in the archive.
+- **Tweet page on phones** (≤600px): edge to edge like X's own tweet page, no floating card, so "Copy as image" matches X's layout too.
 - **Feed preferences** (sort order, theme) persist in `localStorage`, not per-user in the DB.
 - **Two tweet-import paths**: manual markdown entry (`TweetCreator.svelte`, used by `/admin/create`) and clipboard-HTML import (`twitterClipboardParser.ts`, used by `/admin/parse`). Both end up writing the same `{title, slug, markdown_content}` shape to `tweets`.
 - **Screenshot importer** (`/admin/screenshot`): the image is downscaled in the browser to stay under the API's own resize limit (1568px long edge / ~1.15MP) so the returned box coordinates match; boxes are kept in original-image pixels and the crops are cut from the original. Uses Claude Sonnet 5.5 at low effort (~1¢ per screenshot, ~1.5¢ for a thread). Handles threads/reply chains (stored as `[reply]` blocks); relative times like "1d" are kept as shown since there's no date to recover. Crops only upload on save (and are deleted again if the save fails).

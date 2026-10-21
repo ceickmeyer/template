@@ -1,6 +1,7 @@
 <!-- src/lib/components/TweetCreator.svelte -->
 <script lang="ts">
   import { supabase } from '$lib/supabase.js';
+  import { findDuplicate } from '$lib/utils/duplicates';
   import { TweetMarkdownParser, generateSlug, type ParseResult } from '$lib/utils/markdownParser.js';
   import { downloadImage } from '$lib/utils/twitterClipboardParser.js';
   import { deleteMediaFiles } from '$lib/utils/tweetAdmin';
@@ -13,6 +14,8 @@
   let isSubmitting = false;
   let isUploading = false;
   let errorMessage = '';
+  // Slug of a found duplicate the admin chose to save past (see save).
+  let allowDuplicateOf = '';
   let successMessage = '';
   // Uploaded for this draft but not yet saved in a tweet.
   let uploadedFiles: string[] = [];
@@ -196,6 +199,14 @@
     successMessage = '';
 
     try {
+      // Same handle and (nearly) the same text as an archived tweet: stop
+      // once and say so; pressing save again saves it anyway.
+      const duplicate = await findDuplicate(markdownContent);
+      if (duplicate && duplicate.slug !== allowDuplicateOf) {
+        allowDuplicateOf = duplicate.slug;
+        errorMessage = `Looks like a duplicate of “${duplicate.title}” (/${duplicate.slug}). Save again to keep both.`;
+        return;
+      }
       const { error } = await supabase.from('tweets').insert([
         { title: title.trim(), slug: generateSlug(result.data), markdown_content: markdownContent.trim() }
       ]);

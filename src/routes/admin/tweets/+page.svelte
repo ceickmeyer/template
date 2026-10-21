@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import UserTweetDisplay from '$lib/components/UserTweetDisplay.svelte';
   import type { StoredTweet } from '$lib/types/tweet';
+  import { findDuplicateGroups } from '$lib/utils/duplicates';
 
   let tweets: StoredTweet[] = [];
   let loading = true;
@@ -33,8 +34,15 @@
     }
   }
 
+  // Same handle + (nearly) same text; see $lib/utils/duplicates.
+  let duplicatesOnly = false;
+  $: duplicateGroups = findDuplicateGroups(tweets);
+  $: duplicateGroupOf = new Map(duplicateGroups.flatMap((group, i) => group.map((tweet) => [tweet.id, i + 1] as const)));
+
   $: term = searchTerm.trim().toLowerCase();
-  $: filteredTweets = term
+  $: filteredTweets = duplicatesOnly
+    ? duplicateGroups.flat()
+    : term
     ? tweets.filter(
         (tweet) => tweet.title.toLowerCase().includes(term) || tweet.markdown_content.toLowerCase().includes(term)
       )
@@ -89,7 +97,18 @@
         </select>
       </div>
     </div>
-    {#if term}
+    {#if duplicateGroups.length}
+      <div class="-mt-3 mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+        <span>
+          {duplicateGroups.length} possible duplicate {duplicateGroups.length === 1 ? 'set' : 'sets'}
+          ({duplicateGroups.flat().length} tweets)
+        </span>
+        <button type="button" on:click={() => (duplicatesOnly = !duplicatesOnly)} class="font-medium text-amber-900 underline hover:text-amber-700">
+          {duplicatesOnly ? 'Show all tweets' : 'Show them'}
+        </button>
+      </div>
+    {/if}
+    {#if term && !duplicatesOnly}
       <p class="-mt-3 mb-4 text-sm text-gray-600">
         Showing {filteredTweets.length} of {tweets.length}
         <button type="button" on:click={() => (searchTerm = '')} class="ml-2 text-blue-600 hover:text-blue-800">Clear</button>
@@ -126,7 +145,12 @@
         <li class="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <div class="flex items-center justify-between gap-4 border-b border-gray-200 bg-gray-50 px-4 py-3">
             <div class="min-w-0">
-              <h2 class="truncate text-sm font-medium">{tweet.title}</h2>
+              <h2 class="truncate text-sm font-medium">
+                {#if duplicateGroupOf.has(tweet.id)}
+                  <span class="mr-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">Duplicate set {duplicateGroupOf.get(tweet.id)}</span>
+                {/if}
+                {tweet.title}
+              </h2>
               <p class="text-xs text-gray-500">
                 {new Date(tweet.created_at).toLocaleDateString()} ·
                 <code class="rounded bg-gray-200 px-1">{tweet.slug}</code>

@@ -90,7 +90,7 @@
   <main>
     <article class="tweet-card">
       <h1 class="visually-hidden">{tweet.title}</h1>
-      <UserTweetDisplay {tweet} clickable={false} />
+      <UserTweetDisplay {tweet} clickable={false} showDeleted />
     </article>
   </main>
 </div>
@@ -174,9 +174,26 @@
     white-space: nowrap;
   }
 
-  @media (max-width: 500px) {
+  /* Phones: edge to edge like X's own tweet page (and so "Copy as image"
+     comes out the same) — no floating card, just separators. */
+  @media (max-width: 600px) {
     .tweet-page {
-      padding: 16px 8px 48px;
+      padding: 8px 0 48px;
+    }
+
+    .tweet-page-nav {
+      margin-bottom: 4px;
+      padding: 0 8px;
+    }
+
+    .tweet-card {
+      border-width: var(--hairline) 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    :global(:root:not([data-theme='light'])) .tweet-card {
+      box-shadow: none;
     }
   }
 </style>

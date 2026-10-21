@@ -1,6 +1,7 @@
 <!-- src/routes/admin/parse/+page.svelte -->
 <script lang="ts">
   import { supabase } from '$lib/supabase.js';
+  import { findDuplicate } from '$lib/utils/duplicates';
   import {
     parseTwitterClipboard,
     parseArchiverPayload,
@@ -25,6 +26,8 @@
   let isProcessing = false;
   let isSubmitting = false;
   let errorMessage = '';
+  // Slug of a found duplicate the admin chose to save past (see save).
+  let allowDuplicateOf = '';
   let successMessage = '';
   let uploadedFiles: string[] = [];
   let processingStatus = '';
@@ -196,6 +199,14 @@
     successMessage = '';
     
     try {
+      // Same handle and (nearly) the same text as an archived tweet: stop
+      // once and say so; pressing save again saves it anyway.
+      const duplicate = await findDuplicate(previewMarkdown);
+      if (duplicate && duplicate.slug !== allowDuplicateOf) {
+        allowDuplicateOf = duplicate.slug;
+        errorMessage = `Looks like a duplicate of “${duplicate.title}” (/${duplicate.slug}). Save again to keep both.`;
+        return;
+      }
       const { error } = await supabase.from('tweets').insert([
         {
           title: title.trim() || `${parsedData.name} (${parsedData.handle})`,
